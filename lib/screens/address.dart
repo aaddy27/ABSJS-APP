@@ -87,19 +87,19 @@ class AddressScreen extends StatelessWidget {
         width: double.infinity,
         padding: EdgeInsets.all(isSmallScreen ? 16 : 24),
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Colors.teal.shade100, Colors.cyan.shade300],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(20),
-        ),
+  gradient: LinearGradient(
+    colors: [Colors.purple.shade50, Colors.deepPurple.shade100],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  ),
+  borderRadius: BorderRadius.circular(20),
+),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                Icon(Icons.location_pin, color: Colors.teal.shade900, size: isSmallScreen ? 24 : 30),
+                Icon(Icons.location_pin, color: const Color.fromARGB(255, 44, 62, 102), size: isSmallScreen ? 24 : 30),
                 const SizedBox(width: 12),
                 Text(
                   "आपका प्राथमिक पता",
@@ -115,7 +115,7 @@ class AddressScreen extends StatelessWidget {
             Text(
               "जिस पर आप पत्राचार चाहते हैं।",
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Colors.teal.shade800,
+                    color: const Color.fromARGB(255, 57, 21, 105),
                     fontWeight: FontWeight.w500,
                     fontSize: isSmallScreen ? 14 : 16,
                   ),

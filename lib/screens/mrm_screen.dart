@@ -171,14 +171,14 @@ class _MrmScreenState extends State<MrmScreen> {
   physics: NeverScrollableScrollPhysics(),
   childAspectRatio: 2.8, // Adjust height vs width
   children: [
-    buildCard("सामान्य विवरण", Icons.person, 5), // Single person icon
-    buildCard("परिवार", Icons.family_restroom, 0), // Family icon
-    buildCard("पता", Icons.location_on, 1), // Address/location icon
-    buildCard("शिक्षा", Icons.school, 2), // Education icon
-    buildCard("पेशा", Icons.work, 3), // Work icon
-    buildCard("उपलब्धियाँ", Icons.emoji_events, 4), // Achievements icon
-    buildCard("न्यास-ट्रस्ट", Icons.home_work, 6), // Property/Trust icon
-    buildCard("Option 8", Icons.settings, 7), // Settings or other
+    buildCard("सामान्य विवरण", Icons.person, 5), 
+    buildCard("परिवार", Icons.family_restroom, 0), 
+    buildCard("पता", Icons.location_on, 1), 
+    buildCard("शिक्षा", Icons.school, 2), 
+    buildCard("पेशा", Icons.work, 3), 
+    buildCard("उपलब्धियाँ", Icons.emoji_events, 4), 
+    buildCard("न्यास-ट्रस्ट", Icons.home_work, 6), 
+    buildCard("Option 8", Icons.settings, 7), 
   ],
 ),
               ],
