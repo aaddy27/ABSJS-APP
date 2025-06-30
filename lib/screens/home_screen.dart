@@ -27,8 +27,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   final List<Widget> _screens = [
     const HomeDashboard(),
-     UpcomingEventsScreen(),
-     SahityaScreen(),
+    UpcomingEventsScreen(),
+    SahityaScreen(),
     const Center(child: Text("Shamnopasak Coming Soon")),
     const Center(child: Text("Shivir Coming Soon")),
   ];
@@ -38,27 +38,26 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Padding(
-  padding: const EdgeInsets.only(left: 8.0), // move the entire title slightly left
-  child: Row(
-    mainAxisSize: MainAxisSize.min,  // shrink to content size
-    mainAxisAlignment: MainAxisAlignment.start,
-    children: const [
-      CircleAvatar(
-        backgroundImage: AssetImage('assets/logo.png'),
-        radius: 20,
-      ),
-      SizedBox(width: 8),
-      Text(
-        "Sadhumargi Jain Sangh",
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: 18,
-          fontWeight: FontWeight.w600,
+          padding: const EdgeInsets.only(left: 8.0),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: const [
+              CircleAvatar(
+                backgroundImage: AssetImage('assets/logo.png'),
+                radius: 20,
+              ),
+              SizedBox(width: 8),
+              Text(
+                "Sadhumargi Jain Sangh",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
         ),
-      ),
-    ],
-  ),
-),
         centerTitle: true,
         backgroundColor: const Color(0xFF1E3A8A),
         systemOverlayStyle: const SystemUiOverlayStyle(
@@ -77,7 +76,7 @@ class _HomeScreenState extends State<HomeScreen> {
         padding: const EdgeInsets.all(12.0),
         child: Container(
           decoration: BoxDecoration(
-        color: Colors.white,
+            color: Colors.white,
             borderRadius: BorderRadius.circular(30),
             boxShadow: const [
               BoxShadow(
@@ -131,8 +130,15 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-class HomeDashboard extends StatelessWidget {
+class HomeDashboard extends StatefulWidget {
   const HomeDashboard({super.key});
+
+  @override
+  State<HomeDashboard> createState() => _HomeDashboardState();
+}
+
+class _HomeDashboardState extends State<HomeDashboard> {
+  String? memberId;
 
   final List<String> imageList = const [
     'assets/images/slider1.jpg',
@@ -149,10 +155,42 @@ class HomeDashboard extends StatelessWidget {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    loadMemberId();
+  }
+
+  Future<void> loadMemberId() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      memberId = prefs.getString('member_id');
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (memberId == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    final List<Map<String, dynamic>> dashboardItems = [
+      {
+        "title": "ग्लोबल कार्ड",
+        "image": "assets/images/mrm.jpg",
+        "screen": MrmScreen(memberId: memberId!), // 👈 Pass memberId here
+      },
+      {"title": "श्री संघ", "image": "assets/logo_11zon.png", "screen": null},
+      {"title": "महिला समिति", "image": "assets/images/mslogo.png", "screen": null},
+      {"title": "युवा संघ", "image": "assets/images/yuva.png", "screen": null},
+      {"title": "विहार", "image": "assets/images/vihar_seva.jpg", "screen": null},
+    ];
+
+    double width = MediaQuery.of(context).size.width;
+    double itemWidth = (width - 48) / 2;
+
     return SingleChildScrollView(
       child: Padding(
-        padding: const EdgeInsets.only(bottom: 20.0),
+        padding: const EdgeInsets.all(16),
         child: Column(
           children: [
             const SizedBox(height: 10),
@@ -175,66 +213,107 @@ class HomeDashboard extends StatelessWidget {
                 },
               ),
             ),
-            const SizedBox(height: 20),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: GridView.count(
+            const SizedBox(height: 30),
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: dashboardItems.length,
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 2,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                childAspectRatio: 1.0,
-                mainAxisSpacing: 16,
-                crossAxisSpacing: 16,
-                children: [
-                  _buildCard(context, "Global Card", "assets/images/mrm.jpg", MrmScreen()),
-                  _buildCard(context, "Shree Sangh", "assets/logo_11zon.png", null),
-                  _buildCard(context, "Mahila Samiti", "assets/images/mslogo.png", null),
-                  _buildCard(context, "Yuva Sangh", "assets/images/yuva.png", null),
-                  _buildCard(context, "Vihar", "assets/images/vihar_seva.jpg", null),
-                ],
+                crossAxisSpacing: 10,
+                mainAxisSpacing: 12,
+                childAspectRatio: 0.85,
               ),
+              itemBuilder: (context, index) {
+                final item = dashboardItems[index];
+                return _buildSquareCard(
+                  context,
+                  item["title"],
+                  item["image"],
+                  item["screen"],
+                  width: itemWidth,
+                );
+              },
             ),
             const SizedBox(height: 30),
-            SizedBox(
-              height: 80,
-              child: PageView.builder(
-                itemCount: quotes.length,
-                controller: PageController(viewportFraction: 0.9),
-                itemBuilder: (context, index) {
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.orange[50],
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: Colors.black12,
-                            blurRadius: 5,
-                            offset: Offset(2, 3),
-                          ),
-                        ],
-                      ),
-                      padding: const EdgeInsets.all(12),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.format_quote, color: Colors.deepOrange),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              quotes[index],
-                              style: const TextStyle(
-                                fontStyle: FontStyle.italic,
-                                fontWeight: FontWeight.w500,
-                                color: Colors.black87,
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Colors.black12,
+                    blurRadius: 6,
+                    offset: Offset(2, 4),
+                  ),
+                ],
+                border: Border.all(color: Color(0xFFE0E0E0)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    "📜 Quotes of the Day",
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1E3A8A),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    height: 80,
+                    child: PageView.builder(
+                      itemCount: quotes.length,
+                      controller: PageController(viewportFraction: 0.9),
+                      itemBuilder: (context, index) {
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 6),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  Colors.orange.shade50,
+                                  Colors.orange.shade100
+                                ],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
                               ),
+                              borderRadius: BorderRadius.circular(12),
+                              boxShadow: const [
+                                BoxShadow(
+                                  color: Colors.black12,
+                                  blurRadius: 4,
+                                  offset: Offset(2, 2),
+                                ),
+                              ],
+                            ),
+                            padding: const EdgeInsets.all(12),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.format_quote,
+                                    color: Colors.deepOrange),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    quotes[index],
+                                    style: const TextStyle(
+                                      fontStyle: FontStyle.italic,
+                                      fontWeight: FontWeight.w500,
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                        ],
-                      ),
+                        );
+                      },
                     ),
-                  );
-                },
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 30),
@@ -244,50 +323,59 @@ class HomeDashboard extends StatelessWidget {
     );
   }
 
-  Widget _buildCard(BuildContext context, String title, String imagePath, Widget? nextScreen) {
+  Widget _buildSquareCard(
+    BuildContext context,
+    String title,
+    String imagePath,
+    Widget? nextScreen, {
+    required double width,
+  }) {
     return InkWell(
       onTap: nextScreen != null
-          ? () => Navigator.push(context, MaterialPageRoute(builder: (_) => nextScreen))
+          ? () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => nextScreen),
+              )
           : null,
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            height: 100,
-            width: 100,
+            height: 120,
+            width: 120,
+            padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              shape: BoxShape.circle,
               color: Colors.white,
-              border: Border.all(color: const Color(0xFF1E3A8A), width: 2),
+              borderRadius: BorderRadius.circular(16),
+              border:
+                  Border.all(color: const Color(0xFF1E3A8A), width: 1.5),
               boxShadow: const [
                 BoxShadow(
-                  color: Colors.black26,
+                  color: Colors.black12,
                   blurRadius: 6,
-                  spreadRadius: 1,
                   offset: Offset(2, 3),
                 ),
               ],
             ),
-            padding: const EdgeInsets.all(12),
-            child: ClipOval(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(10),
               child: Image.asset(imagePath, fit: BoxFit.contain),
             ),
           ),
-          const SizedBox(height: 8),
-          Text(
-            title,
-            style: const TextStyle(
-              fontWeight: FontWeight.w700,
-              fontSize: 20,
-              color: Color(0xFF1E3A8A),
-              shadows: [
-                Shadow(
-                  blurRadius: 1.0,
-                  color: Colors.black26,
-                  offset: Offset(1.0, 1.0),
-                ),
-              ],
+          const SizedBox(height: 10),
+          SizedBox(
+            width: width,
+            child: Text(
+              title,
+              style: const TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF1E3A8A),
+              ),
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
             ),
-            textAlign: TextAlign.center,
           ),
         ],
       ),

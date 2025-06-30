@@ -11,6 +11,10 @@ import 'general_details.dart';
 import 'trust.dart';
 
 class MrmScreen extends StatefulWidget {
+  final String memberId;
+
+  const MrmScreen({super.key, required this.memberId});
+
   @override
   State<MrmScreen> createState() => _MrmScreenState();
 }
@@ -55,7 +59,8 @@ class _MrmScreenState extends State<MrmScreen> {
         targetScreen = ViewDashboard();
         break;
       case 1:
-        targetScreen = AddressScreen();
+       targetScreen = const AddressScreen();
+
         break;
       case 2:
        targetScreen = Education();
@@ -73,7 +78,8 @@ class _MrmScreenState extends State<MrmScreen> {
         targetScreen = Trust();
        break;
       case 7:
-        targetScreen = AddressScreen();
+      
+        targetScreen = const AddressScreen();
         break;
       default:
         return;

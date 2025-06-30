@@ -1,480 +1,439 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'base_scaffold.dart';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
-class AddressScreen extends StatelessWidget {
-  final List<Map<String, String>> savedAddresses = [
-    {
-      'address':
-          '5-e-256, Jnv\nपोस्ट: BIKANER\nजिला: BIKANER\nपिन कोड: 334001\nराज्य: Rajasthan\nदेश: India',
-      'type': 'Residential'
-    },
-    {
-      'address':
-          '5-d-130, JNV, Back Side Of Gramin Bank\nपोस्ट: Deshnok\nजिला: Jaipur\nपिन कोड: 334401\nराज्य: Jharkhand\nदेश: India',
-      'type': 'Office/Business'
-    },
-    {
-      'address':
-          'Rampuria, Near kotwali\nपोस्ट: Deshnok\nजिला: Jaipur\nपिन कोड: 334401\nराज्य: Goa\nदेश: India',
-      'type': 'Factory'
-    },
-    {
-      'address':
-          '4-o, Near SBBJ Bank\nपोस्ट: Bikaner\nजिला: Bikaner\nपिन कोड: 334005\nराज्य: Bihar\nदेश: India',
-      'type': 'Other'
+class AddressScreen extends StatefulWidget {
+  const AddressScreen({super.key});
+
+  @override
+  State<AddressScreen> createState() => _AddressScreenState();
+}
+
+class _AddressScreenState extends State<AddressScreen> with TickerProviderStateMixin {
+  late TabController _tabController;
+  Map<String, dynamic>? primaryAddress;
+  List<dynamic> savedAddresses = [];
+  List<String> countries = [];
+  List<String> states = [];
+
+  final formKey = GlobalKey<FormState>();
+  final Map<String, TextEditingController> controllers = {
+    'address1': TextEditingController(),
+    'address2': TextEditingController(),
+    'post': TextEditingController(),
+    'city': TextEditingController(),
+    'district': TextEditingController(),
+    'pincode': TextEditingController(),
+  };
+
+  String selectedCountry = '';
+  String selectedState = '';
+  String selectedOriginState = '';
+  String selectedAddressType = 'Factory';
+  int? editId;
+  String? memberId;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 3, vsync: this);
+    loadMemberIdAndData();
+    loadCountries();
+  }
+
+  Future<void> loadMemberIdAndData() async {
+  final prefs = await SharedPreferences.getInstance(); // ✅ this line is REQUIRED
+  final rawMemberId = prefs.getString('member_id');
+  print("SharedPreferences से मिला member_id: $rawMemberId");
+
+  if (rawMemberId != null && int.tryParse(rawMemberId) != null) {
+    final actualId = int.parse(rawMemberId) - 100000;
+    memberId = actualId.toString(); // Save the adjusted ID to use in API calls
+    print("API में भेजा जा रहा adjusted member_id: $memberId");
+
+    setState(() {}); // Refresh UI
+    loadPrimaryAddress();
+    loadSavedAddresses();
+  }
+}
+
+
+  Future<void> loadPrimaryAddress() async {
+    final url = 'https://mrmapi.sadhumargi.in/api/primary-address/$memberId';
+    final res = await http.get(Uri.parse(url));
+    if (res.statusCode == 200) {
+      setState(() => primaryAddress = jsonDecode(res.body));
     }
-  ];
+  }
 
-  AddressScreen({super.key});
+  Future<void> loadSavedAddresses() async {
+    final url = 'https://mrmapi.sadhumargi.in/api/addresses/$memberId';
+    final res = await http.get(Uri.parse(url));
+    if (res.statusCode == 200) {
+      setState(() => savedAddresses = jsonDecode(res.body));
+    }
+  }
+
+  Future<void> loadCountries() async {
+    final url = Uri.parse('https://api.countrystatecity.in/v1/countries');
+    final response = await http.get(
+      url,
+      headers: {
+        'X-CSCAPI-KEY': 'S2dBYnJldWtmRFM4U2VUdG9Fd0hiRXp2RjhpTm81YlhVVThiWEdiTA==',
+      },
+    );
+    if (response.statusCode == 200) {
+      final List data = jsonDecode(response.body);
+      final names = data.map<String>((c) => "${c['name']}|${c['iso2']}").toList();
+      names.sort();
+      setState(() => countries = names);
+    }
+  }
+
+  Future<void> loadStates(String selectedCountryValue) async {
+    final parts = selectedCountryValue.split('|');
+    final isoCode = parts.length > 1 ? parts[1] : '';
+    if (isoCode.isEmpty) return;
+
+    final url = Uri.parse('https://api.countrystatecity.in/v1/countries/$isoCode/states');
+    final response = await http.get(
+      url,
+      headers: {
+        'X-CSCAPI-KEY': 'S2dBYnJldWtmRFM4U2VUdG9Fd0hiRXp2RjhpTm81YlhVVThiWEdiTA==',
+      },
+    );
+    if (response.statusCode == 200) {
+      final List data = jsonDecode(response.body);
+      final stateNames = data.map<String>((s) => s['name'].toString()).toList();
+      setState(() => states = stateNames);
+    }
+  }
+
+  Future<void> saveOrUpdateAddress() async {
+    if (!formKey.currentState!.validate() || memberId == null) return;
+
+    final payload = {
+      "member_id": memberId,
+      "address1": controllers['address1']!.text,
+      "address2": controllers['address2']!.text,
+      "post": controllers['post']!.text,
+      "city": controllers['city']!.text,
+      "district": controllers['district']!.text,
+      "pincode": controllers['pincode']!.text,
+      "country": selectedCountry.split('|').first,
+      "state": selectedState,
+      "address_type": selectedAddressType,
+      "is_primary": 0,
+      "is_enabled": 1,
+    };
+
+    final isUpdate = editId != null;
+    final url = Uri.parse(isUpdate
+        ? 'https://mrmapi.sadhumargi.in/api/update-address/$editId'
+        : 'https://mrmapi.sadhumargi.in/api/save-address');
+
+    try {
+      final res = await (isUpdate
+          ? http.put(url,
+              headers: {'Content-Type': 'application/json'},
+              body: jsonEncode(payload))
+          : http.post(url,
+              headers: {'Content-Type': 'application/json'},
+              body: jsonEncode(payload)));
+
+      if (res.statusCode == 200 || res.statusCode == 201) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(isUpdate ? 'Address updated successfully!' : 'Address saved successfully!')));
+        resetForm();
+        loadSavedAddresses();
+        loadPrimaryAddress();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: ${res.body}')));
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Network error: $e')));
+    }
+  }
+
+  void resetForm() {
+    controllers.forEach((_, c) => c.clear());
+    selectedCountry = '';
+    selectedState = '';
+    selectedOriginState = '';
+    selectedAddressType = 'Factory';
+    editId = null;
+    setState(() {});
+  }
+
+  Future<void> deleteAddress(int id) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Confirm Delete"),
+        content: const Text("Are you sure you want to delete this address?"),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("Cancel")),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text("Delete")),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    final url = 'https://mrmapi.sadhumargi.in/api/delete-address/$id';
+    final res = await http.delete(Uri.parse(url));
+    if (res.statusCode == 200) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Deleted successfully')));
+      loadSavedAddresses();
+      loadPrimaryAddress();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final isSmallScreen = screenWidth < 600;
-
-    return BaseScaffold(
-      selectedIndex: 2,
-      body: DefaultTabController(
-        length: 3,
-        child: Column(
-          children: [
-            Container(
-              color: Colors.deepPurple.shade50,
-              padding: EdgeInsets.symmetric(horizontal: isSmallScreen ? 12 : 24, vertical: 12),
-              child: TabBar(
-                labelColor: Colors.deepPurple.shade800,
-                indicatorColor: Colors.deepPurple,
-                labelStyle: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: isSmallScreen ? 14 : 16,
-                ),
-                tabs: const [
-                  Tab(text: 'प्राथमिक पता'),
-                  Tab(text: 'पता अपडेट करें'),
-                  Tab(text: 'सहेजे गए पते'),
-                ],
-              ),
-            ),
-            Expanded(
-              child: TabBarView(
-                children: [
-                  SingleChildScrollView(
-                    padding: EdgeInsets.all(isSmallScreen ? 16 : 24),
-                    child: _buildPrimaryAddressSection(context, isSmallScreen),
-                  ),
-                  SingleChildScrollView(
-                    padding: EdgeInsets.all(isSmallScreen ? 16 : 24),
-                    child: _buildAddressFormSection(context, isSmallScreen),
-                  ),
-                  SingleChildScrollView(
-                    padding: EdgeInsets.all(isSmallScreen ? 16 : 24),
-                    child: _buildHorizontalAddressCards(context, isSmallScreen),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPrimaryAddressSection(BuildContext context, bool isSmallScreen) {
-    return Card(
-      elevation: 8,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      child: Container(
-        width: double.infinity,
-        padding: EdgeInsets.all(isSmallScreen ? 16 : 24),
-        decoration: BoxDecoration(
-  gradient: LinearGradient(
-    colors: [Colors.purple.shade50, Colors.deepPurple.shade100],
-    begin: Alignment.topLeft,
-    end: Alignment.bottomRight,
-  ),
-  borderRadius: BorderRadius.circular(20),
-),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.location_pin, color: const Color.fromARGB(255, 44, 62, 102), size: isSmallScreen ? 24 : 30),
-                const SizedBox(width: 12),
-                Text(
-                  "आपका प्राथमिक पता",
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.teal.shade900,
-                        fontSize: isSmallScreen ? 18 : 22,
-                      ),
-                ),
+    return Scaffold(
+      appBar: AppBar(title: const Text('पता प्रबंधन')),
+      body: Column(
+        children: [
+          // if (memberId != null)
+          //   Container(
+          //     width: double.infinity,
+          //     color: Colors.grey.shade300,
+          //     padding: const EdgeInsets.all(8),
+          //     child: Text(
+          //       'Logged-in Member ID: $memberId',
+          //       style: const TextStyle(fontWeight: FontWeight.bold),
+          //     ),
+          //   ),
+          Container(
+            color: Colors.blue[100],
+            child: TabBar(
+              controller: _tabController,
+              labelColor: Colors.blue,
+              unselectedLabelColor: Colors.black,
+              indicatorColor: Colors.blue,
+              tabs: const [
+                Tab(text: 'Primary Address'),
+                Tab(text: 'Add / Update Address'),
+                Tab(text: 'Saved Addresses'),
               ],
             ),
-            const SizedBox(height: 12),
-            Text(
-              "जिस पर आप पत्राचार चाहते हैं।",
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: const Color.fromARGB(255, 57, 21, 105),
-                    fontWeight: FontWeight.w500,
-                    fontSize: isSmallScreen ? 14 : 16,
-                  ),
-            ),
-            const SizedBox(height: 20),
-            _buildAddressDetail(
-              icon: Icons.apartment,
-              label: "पता का प्रकार",
-              value: "Factory",
-              color: Colors.teal.shade700,
-              isSmallScreen: isSmallScreen,
-            ),
-            _buildAddressDetail(
-              icon: Icons.home,
-              label: "पता",
-              value: "Rampuria",
-              color: Colors.teal.shade700,
-              isSmallScreen: isSmallScreen,
-            ),
-            _buildAddressDetail(
-              icon: Icons.local_post_office,
-              label: "पोस्ट",
-              value: "Deshnok",
-              color: Colors.teal.shade700,
-              isSmallScreen: isSmallScreen,
-            ),
-            _buildAddressDetail(
-              icon: Icons.location_city,
-              label: "जिला",
-              value: "Jaipur",
-              color: Colors.teal.shade700,
-              isSmallScreen: isSmallScreen,
-            ),
-            _buildAddressDetail(
-              icon: Icons.pin,
-              label: "पिन कोड",
-              value: "334401",
-              color: Colors.teal.shade700,
-              isSmallScreen: isSmallScreen,
-            ),
-            _buildAddressDetail(
-              icon: Icons.public,
-              label: "राज्य",
-              value: "Goa",
-              color: Colors.teal.shade700,
-              isSmallScreen: isSmallScreen,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAddressDetail({
-    required IconData icon,
-    required String label,
-    required String value,
-    required Color color,
-    required bool isSmallScreen,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        children: [
-          Icon(icon, size: isSmallScreen ? 18 : 20, color: color),
-          const SizedBox(width: 8),
+          ),
           Expanded(
-            child: Text(
-              "$label: $value",
-              style: TextStyle(
-                fontSize: isSmallScreen ? 14 : 16,
-                color: color,
-                fontWeight: FontWeight.w500,
-              ),
-              overflow: TextOverflow.ellipsis,
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                buildPrimaryAddressView(),
+                buildAddressForm(),
+                buildSavedAddressList(),
+              ],
             ),
           ),
         ],
       ),
     );
   }
-
-  Widget _buildAddressFormSection(BuildContext context, bool isSmallScreen) {
-    return Card(
-      elevation: 6,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      child: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Colors.white, Colors.blue.shade50],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(20),
+// primary address tab 
+Widget buildPrimaryAddressView() {
+  if (primaryAddress == null) {
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      color: Colors.grey.shade100,
+      child: const Center(
+        child: Text(
+          "📭 कोई प्राथमिक पता उपलब्ध नहीं है।",
+          style: TextStyle(fontSize: 18),
         ),
-        child: Padding(
-          padding: EdgeInsets.symmetric(
-            horizontal: isSmallScreen ? 16 : 24,
-            vertical: isSmallScreen ? 20 : 28,
+      ),
+    );
+  }
+
+  return Container(
+    width: double.infinity,
+    height: double.infinity,
+    color: Colors.green.shade50,
+    child: Center(
+      child: Container(
+        constraints: const BoxConstraints(
+          maxWidth: 300, // 👈 This keeps it portrait-style
+          minHeight: 300,
+        ),
+        child: Card(
+          elevation: 10,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          color: Colors.white,
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text(
+                  "🏡 प्राथमिक पता",
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.green),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  "📍 ${primaryAddress!['address1']}, ${primaryAddress!['address2']}\n"
+                  "🏤 ${primaryAddress!['post']}, ${primaryAddress!['city']}, ${primaryAddress!['district']} - ${primaryAddress!['pincode']}\n"
+                  "🌐 ${primaryAddress!['state']}, ${primaryAddress!['country']}",
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 16, height: 1.5),
+                ),
+              ],
+            ),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+        ),
+      ),
+    ),
+  );
+}
+
+
+// form for add and edit tab 
+
+  Widget buildAddressForm() {
+  return Padding(
+    padding: const EdgeInsets.all(16),
+    child: Form(
+      key: formKey,
+      child: ListView(
+        children: [
+          const Text("📋 पता फॉर्म", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blue)),
+          const SizedBox(height: 10),
+          ...[
+            ['address1', '🏠 पता 1 *'],
+            ['address2', '🏠 पता 2'],
+            ['post', '🏤 पोस्ट *'],
+            ['city', '🏙️ शहर *'],
+            ['district', '🗺️ जिला *'],
+            ['pincode', '🔢 पिन कोड *'],
+          ].map((field) => Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: TextFormField(
+              controller: controllers[field[0]]!,
+              decoration: InputDecoration(
+                labelText: field[1],
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                fillColor: Colors.blue.shade50,
+                filled: true,
+              ),
+              validator: (v) => field[1].contains('*') && (v == null || v.isEmpty) ? 'Required' : null,
+            ),
+          )),
+          const SizedBox(height: 10),
+          DropdownButtonFormField<String>(
+            value: selectedCountry.isNotEmpty ? selectedCountry : null,
+            items: countries.map((c) {
+              final parts = c.split('|');
+              return DropdownMenuItem(value: c, child: Text("🌍 ${parts[0]}"));
+            }).toList(),
+            onChanged: (v) {
+              setState(() {
+                selectedCountry = v!;
+                loadStates(v);
+              });
+            },
+            decoration: const InputDecoration(labelText: '🌐 देश'),
+          ),
+          const SizedBox(height: 10),
+          DropdownButtonFormField<String>(
+            value: selectedState.isNotEmpty ? selectedState : null,
+            items: states.map((s) => DropdownMenuItem(value: s, child: Text("🏞️ $s"))).toList(),
+            onChanged: (v) => setState(() => selectedState = v!),
+            decoration: const InputDecoration(labelText: '🗺️ राज्य'),
+          ),
+          const SizedBox(height: 10),
+          DropdownButtonFormField<String>(
+            value: selectedAddressType,
+            items: ['Factory', 'Residential', 'Office/Business', 'Other'].map(
+              (s) => DropdownMenuItem(value: s, child: Text("🏷️ $s")),
+            ).toList(),
+            onChanged: (v) => setState(() => selectedAddressType = v!),
+            decoration: const InputDecoration(labelText: '🏢 पता प्रकार'),
+          ),
+          const SizedBox(height: 16),
+          ElevatedButton.icon(
+            icon: const Icon(Icons.save),
+            label: Text(editId == null ? "✅ पता सेव करें" : "✏️ पता अपडेट करें"),
+            onPressed: saveOrUpdateAddress,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+//tab 3 saved address 
+  Widget buildSavedAddressList() {
+  if (savedAddresses.isEmpty) {
+    return const Center(child: Text("📭 कोई पता उपलब्ध नहीं है।", style: TextStyle(fontSize: 18)));
+  }
+
+  return ListView.builder(
+    padding: const EdgeInsets.all(16),
+    itemCount: savedAddresses.length,
+    itemBuilder: (_, i) {
+      final a = savedAddresses[i];
+      return Card(
+        margin: const EdgeInsets.symmetric(vertical: 8),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        elevation: 3,
+        child: ListTile(
+          title: Text("📍 ${a['address1']}, ${a['address2']}"),
+          subtitle: Text("🏙️ ${a['city']}, ${a['district']} - ${a['pincode']}"),
+          onTap: () => showDialog(
+            context: context,
+            builder: (_) => AlertDialog(
+              title: const Text("🏠 पता विवरण", style: TextStyle(color: Colors.deepPurple)),
+              content: Text(
+                "${a['address1']}, ${a['address2']},\n📮 ${a['post']}, ${a['city']}, ${a['district']} - ${a['pincode']},\n🌐 ${a['state']}, ${a['country']}",
+                style: const TextStyle(fontSize: 16),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text("❌ बंद करें"),
+                ),
+              ],
+            ),
+          ),
+          trailing: Wrap(
+            spacing: 8,
             children: [
-              Row(
-                children: [
-                  Icon(Icons.info_outline, color: Colors.indigo.shade700, size: isSmallScreen ? 24 : 28),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      "नोट: सदस्यता पत्रिका में दिए गए पते के आधार पर आपसे संपर्क किया जायेगा।",
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Colors.indigo.shade800,
-                            fontWeight: FontWeight.w500,
-                            fontSize: isSmallScreen ? 14 : 16,
-                          ),
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 2,
-                    ),
-                  ),
-                ],
+              IconButton(
+                icon: const Icon(Icons.edit, color: Colors.blue),
+                onPressed: () {
+                  for (final k in controllers.keys) {
+                    controllers[k]?.text = a[k]?.toString() ?? '';
+                  }
+                  setState(() {
+                    selectedCountry = a['country'] ?? '';
+                    selectedState = a['state'] ?? '';
+                    selectedOriginState = a['origin_state'] ?? '';
+                    selectedAddressType = a['address_type'] ?? 'Factory';
+                    editId = a['id'];
+                  });
+                  _tabController.animateTo(1);
+                },
               ),
-              SizedBox(height: isSmallScreen ? 16 : 24),
-              _buildTextField(context, "पता 1", isSmallScreen),
-              SizedBox(height: isSmallScreen ? 16 : 20),
-              _buildTextField(context, "पता 2", isSmallScreen),
-              SizedBox(height: isSmallScreen ? 16 : 20),
-              GridView.count(
-                shrinkWrap: true,
-                crossAxisCount: 2,
-                crossAxisSpacing: isSmallScreen ? 12 : 16,
-                mainAxisSpacing: isSmallScreen ? 12 : 16,
-                childAspectRatio: isSmallScreen ? 2.8 : 2.5,
-                physics: const NeverScrollableScrollPhysics(),
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                children: [
-                  _buildTextField(context, "पोस्ट", isSmallScreen),
-                  _buildTextField(context, "शहर", isSmallScreen),
-                  _buildTextField(context, "जिला", isSmallScreen),
-                  _buildTextField(context, "पिन कोड", isSmallScreen),
-                  _buildTextField(context, "देश", isSmallScreen),
-                  _buildTextField(context, "राज्य", isSmallScreen),
-                ],
-              ),
-              SizedBox(height: isSmallScreen ? 24 : 32),
-              Row(
-                children: [
-                  Flexible(
-                    flex: 2,
-                    child: DropdownButtonFormField<String>(
-                      isExpanded: true,
-                      items: ['Factory', 'Residential', 'Office/Business', 'Other']
-                          .map((type) => DropdownMenuItem(
-                                value: type,
-                                child: Text(
-                                  type,
-                                  style: TextStyle(
-                                    fontSize: isSmallScreen ? 14 : 16,
-                                    color: Colors.indigo.shade800,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ))
-                          .toList(),
-                      onChanged: (_) {},
-                      decoration: InputDecoration(
-                        labelText: "पता का प्रकार",
-                        labelStyle: TextStyle(
-                          fontSize: isSmallScreen ? 14 : 16,
-                          color: Colors.indigo.shade700,
-                        ),
-                        filled: true,
-                        fillColor: Colors.indigo.shade50,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: Colors.indigo.shade200),
-                        ),
-                        contentPadding: EdgeInsets.symmetric(
-                          horizontal: isSmallScreen ? 16 : 20,
-                          vertical: isSmallScreen ? 12 : 16,
-                        ),
-                      ),
-                    ),
-                  ),
-                  SizedBox(width: isSmallScreen ? 12 : 16),
-                  Flexible(
-                    flex: 1,
-                    child: _coloredActionButton(
-                      context,
-                      label: "Update",
-                      icon: Icons.save_alt,
-                      color: Colors.indigo.shade600,
-                      isSmallScreen: isSmallScreen,
-                    ),
-                  ),
-                ],
+              IconButton(
+                icon: const Icon(Icons.delete, color: Colors.red),
+                onPressed: () => deleteAddress(a['id']),
               ),
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildHorizontalAddressCards(BuildContext context, bool isSmallScreen) {
-    return Column(
-      children: savedAddresses.asMap().entries.map((entry) {
-        int index = entry.key + 1;
-        Map<String, String> address = entry.value;
-
-        return Card(
-          elevation: 4,
-          margin: const EdgeInsets.symmetric(vertical: 12),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          child: Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Colors.purple.shade50, Colors.blue.shade50],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Padding(
-              padding: EdgeInsets.all(isSmallScreen ? 12 : 20),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    "$index.",
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.purple.shade800,
-                          fontSize: isSmallScreen ? 18 : 22,
-                        ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          address['address']!,
-                          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                                color: Colors.black87,
-                                height: 1.5,
-                                fontSize: isSmallScreen ? 14 : 16,
-                              ),
-                          overflow: TextOverflow.ellipsis,
-                          maxLines: 4,
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          "पता का प्रकार: ${address['type']}",
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.bold,
-                                color: Colors.purple.shade700,
-                                fontSize: isSmallScreen ? 14 : 16,
-                              ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    ),
-                  ),
-                  SizedBox(width: isSmallScreen ? 12 : 16),
-                  Column(
-                    children: [
-                      _coloredActionButton(
-                        context,
-                        label: "Edit",
-                        icon: Icons.edit,
-                        color: Colors.amber.shade600,
-                        isSmallScreen: isSmallScreen,
-                      ),
-                      const SizedBox(height: 12),
-                      _coloredActionButton(
-                        context,
-                        label: "Delete",
-                        icon: Icons.delete,
-                        color: Colors.red.shade400,
-                        isSmallScreen: isSmallScreen,
-                      ),
-                      const SizedBox(height: 12),
-                      _coloredActionButton(
-                        context,
-                        label: "Primary",
-                        icon: Icons.star,
-                        color: Colors.green.shade600,
-                        isSmallScreen: isSmallScreen,
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      }).toList(),
-    );
-  }
-
-  Widget _coloredActionButton(
-    BuildContext context, {
-    required String label,
-    required IconData icon,
-    required Color color,
-    required bool isSmallScreen,
-  }) {
-    return ElevatedButton.icon(
-      onPressed: () {},
-      icon: Icon(icon, size: isSmallScreen ? 16 : 20, color: Colors.white),
-      label: Text(
-        label,
-        style: TextStyle(
-          fontSize: isSmallScreen ? 14 : 16,
-          color: Colors.white,
-          fontWeight: FontWeight.w600,
-        ),
-        overflow: TextOverflow.ellipsis,
-      ),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: color,
-        padding: EdgeInsets.symmetric(
-          horizontal: isSmallScreen ? 12 : 16,
-          vertical: isSmallScreen ? 10 : 12,
-        ),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        elevation: 3,
-        minimumSize: Size(isSmallScreen ? 80 : 100, isSmallScreen ? 36 : 40),
-      ),
-    );
-  }
-
-  Widget _buildTextField(BuildContext context, String label, bool isSmallScreen) {
-    return TextField(
-      style: TextStyle(fontSize: isSmallScreen ? 14 : 16),
-      keyboardType: TextInputType.multiline,
-      minLines: 1,
-      maxLines: 2,
-      decoration: InputDecoration(
-        labelText: label,
-        labelStyle: TextStyle(
-          fontSize: isSmallScreen ? 14 : 16,
-          color: Colors.indigo.shade700,
-        ),
-        filled: true,
-        fillColor: Colors.indigo.shade50,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.indigo.shade200),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.indigo.shade600, width: 2),
-        ),
-        contentPadding: EdgeInsets.symmetric(
-          horizontal: isSmallScreen ? 16 : 20,
-          vertical: isSmallScreen ? 12 : 16,
-        ),
-      ),
-    );
-  }
+      );
+    },
+  );
+}
 }

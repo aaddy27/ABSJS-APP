@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-import 'screens/splash_screen.dart';  // import karo splash screen
+import 'screens/splash_screen.dart';
+import 'screens/login_screen.dart';
+import 'screens/home_screen.dart'; // ✅ Home screen import karo
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -18,7 +20,14 @@ class MyApp extends StatelessWidget {
         primarySwatch: Colors.deepPurple,
         scaffoldBackgroundColor: Colors.grey[100],
       ),
-      home: const SplashScreen(),  // yahan SplashScreen dikhao
+      // Start with SplashScreen
+      home: const SplashScreen(),
+
+      // ✅ Named routes define karo
+      routes: {
+        '/login': (context) => LoginScreen(),
+        '/home': (context) => HomeScreen(),
+      },
     );
   }
 }

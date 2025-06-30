@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
-import '../services/api_service.dart';
-import 'home_screen.dart';
-import 'register_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../services/api_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -11,275 +9,245 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
-  final _formKey = GlobalKey<FormState>();
-  String? email = '', password = '';
-  bool loading = false;
-  bool _obscureText = true;
+class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
 
-  Future<void> saveToken(String token) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('token', token);
+  // Member ID Login
+  final _memberIdController = TextEditingController();
+  final _passwordController = TextEditingController();
+  
+
+  // Mobile OTP Login
+  final _mobileController = TextEditingController();
+  final _otpController = TextEditingController();
+
+  List<Map<String, dynamic>> memberList = [];
+  String selectedMemberId = "";
+  bool isOTPSent = false;
+  bool isLoading = false;
+  bool isMemberSelectionRequired = false;
+   String currentMobile = ''; // ✅ Add this line
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
   }
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _loginWithMemberId() async {
+    final memberId = _memberIdController.text.trim();
+    final password = _passwordController.text.trim();
+    if (memberId.isEmpty || password.isEmpty) {
+      _showError('Please fill all fields');
+      return;
+    }
+
+    setState(() => isLoading = true);
+final result = await ApiService().loginWithMemberId(memberId, password);
+final data = result['data'] ?? {};
+    setState(() => isLoading = false);
+
+    if (result['success']) {
+      final prefs = await SharedPreferences.getInstance();
+     await prefs.setString('member_id', data['member_id']?.toString() ?? '');
+await prefs.setString('family_id', data['family_id']?.toString() ?? '');
+await prefs.setBool('is_head_of_family', data['is_head_of_family'] == true);
+await prefs.setString('token', data['token'] ?? '');
+
+      Navigator.pushReplacementNamed(context, '/home');
+    } else {
+      _showError(result['message'] ?? 'Login failed');
+    }
+  }
+
+  Future<void> _checkMobile() async {
+    final mobile = _mobileController.text.trim();
+    if (mobile.isEmpty) {
+      _showError('Enter mobile number');
+      return;
+    }
+
+currentMobile = mobile; // ✅ store it
+
+    setState(() {
+      isLoading = true;
+      isOTPSent = false;
+      isMemberSelectionRequired = false;
+      selectedMemberId = '';
+      memberList = [];
+    });
+
+    final result = await ApiService().checkMobile(mobile);
+    print('Mobile Check API response: $result');
+
+    setState(() => isLoading = false);
+
+    if (result['members'] != null && result['members'].isNotEmpty) {
+      setState(() {
+        memberList = List<Map<String, dynamic>>.from(result['members']);
+        selectedMemberId = memberList.first['member_id'].toString();
+        isMemberSelectionRequired = true;
+      });
+    } else {
+      _showError('No member ID found.');
+    }
+  }
+
+Future<void> _sendOtp() async {
+  final mobile = currentMobile;
+  if (mobile.isEmpty || selectedMemberId.isEmpty) {
+    _showError('Missing mobile or member ID');
+    return;
+  }
+
+  print("Sending OTP to: $mobile with memberId: $selectedMemberId");
+
+  setState(() => isLoading = true);
+final result = await ApiService().sendOTP(currentMobile, selectedMemberId);
+
+  setState(() {
+    isLoading = false;
+    isOTPSent = result['success'];
+  });
+
+  if (!result['success']) {
+    _showError(result['message'] ?? 'Failed to send OTP');
+  }
+}
+
+
+  Future<void> _verifyOTP() async {
+  final otp = _otpController.text.trim();
+  final mobile = _mobileController.text.trim();
+
+  if (otp.isEmpty || selectedMemberId.isEmpty || mobile.isEmpty) {
+    _showError('Please enter OTP and select Member ID');
+    return;
+  }
+
+  setState(() => isLoading = true);
+  final result = await ApiService().verifyOTP(mobile, otp, selectedMemberId);
+  setState(() => isLoading = false);
+
+  if (result['success']) {
+    final data = result['data'] ?? {};
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('member_id', data['member_id']?.toString() ?? '');
+    await prefs.setString('family_id', data['family_id']?.toString() ?? '');
+    await prefs.setBool('is_head_of_family', data['is_head_of_family'] == true);
+    await prefs.setString('token', data['token'] ?? '');
+
+    Navigator.pushReplacementNamed(context, '/home');
+  } else {
+    _showError(result['message'] ?? 'OTP verification failed');
+  }
+}
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF3F4F6),
-      body: Stack(
+      appBar: AppBar(title: const Text('Login')),
+      body: Column(
         children: [
-          Positioned(top: -80, left: -80, child: _buildBlob(Colors.deepPurple)),
-          Positioned(bottom: -60, right: -80, child: _buildBlob(Colors.indigo)),
-
-          Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Image.asset(
-                    'assets/logo.png',
-                    height: 120,
-                    fit: BoxFit.contain,
+          TabBar(
+            controller: _tabController,
+            tabs: const [
+              Tab(text: 'Member ID'),
+              Tab(text: 'Mobile OTP'),
+            ],
+          ),
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                // Member ID Login Tab
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    children: [
+                      TextField(
+                        controller: _memberIdController,
+                        decoration: const InputDecoration(labelText: 'Member ID'),
+                      ),
+                      TextField(
+                        controller: _passwordController,
+                        obscureText: true,
+                        decoration: const InputDecoration(labelText: 'Password'),
+                      ),
+                      const SizedBox(height: 20),
+                      isLoading
+                          ? const CircularProgressIndicator()
+                          : ElevatedButton(
+                              onPressed: _loginWithMemberId,
+                              child: const Text('Login'),
+                            ),
+                    ],
                   ),
-                  const SizedBox(height: 20),
+                ),
 
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 30),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(25),
-                      border: Border.all(color: Colors.deepPurple.shade100, width: 2),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.grey.shade300,
-                          offset: const Offset(4, 4),
-                          blurRadius: 15,
-                          spreadRadius: 2,
+                // Mobile OTP Login Tab
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    children: [
+                      TextField(
+                        controller: _mobileController,
+                        keyboardType: TextInputType.phone,
+                        decoration: const InputDecoration(labelText: 'Mobile Number'),
+                      ),
+                      const SizedBox(height: 10),
+                      ElevatedButton(
+                        onPressed: _checkMobile,
+                        child: const Text('Check MIDs'),
+                      ),
+                      const SizedBox(height: 10),
+                      if (isMemberSelectionRequired)
+                        DropdownButtonFormField<String>(
+                          value: selectedMemberId.isNotEmpty ? selectedMemberId : null,
+                          decoration: const InputDecoration(labelText: 'Select Member ID'),
+                          items: memberList.map((member) {
+                            return DropdownMenuItem(
+                              value: member['member_id'].toString(),
+                              child: Text('${member['name']} (${member['member_id']})'),
+                            );
+                          }).toList(),
+                          onChanged: (value) {
+                            setState(() => selectedMemberId = value ?? '');
+                          },
                         ),
-                        const BoxShadow(
-                          color: Colors.white,
-                          offset: Offset(-4, -4),
-                          blurRadius: 10,
-                          spreadRadius: 1,
+                      const SizedBox(height: 10),
+                      if (selectedMemberId.isNotEmpty && !isOTPSent)
+                        ElevatedButton(
+                          onPressed: _sendOtp,
+                          child: const Text('Send OTP'),
+                        ),
+                      if (isOTPSent) ...[
+                        TextField(
+                          controller: _otpController,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(labelText: 'Enter OTP'),
+                        ),
+                        const SizedBox(height: 10),
+                        ElevatedButton(
+                          onPressed: _verifyOTP,
+                          child: const Text('Verify OTP'),
                         ),
                       ],
-                    ),
-                    child: Form(
-                      key: _formKey,
-                      child: Column(
-                        children: [
-                          const Text(
-                            'Login',
-                            style: TextStyle(
-                              fontSize: 30,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.deepPurple,
-                            ),
-                          ),
-                          const SizedBox(height: 30),
-
-                          _buildInputField(
-                            icon: Icons.person,
-                            iconColor: Colors.deepPurple,
-                            hintText: 'Email',
-                            onChanged: (val) => email = val,
-                            validator: (val) =>
-                                val == null || val.isEmpty || !val.contains('@')
-                                    ? 'Enter valid email'
-                                    : null,
-                          ),
-                          const SizedBox(height: 20),
-
-                          _buildInputField(
-                            icon: Icons.lock,
-                            iconColor: Colors.deepPurple,
-                            hintText: 'Password',
-                            obscureText: _obscureText,
-                            suffix: IconButton(
-                              icon: Icon(
-                                _obscureText
-                                    ? Icons.visibility
-                                    : Icons.visibility_off,
-                                color: Colors.grey,
-                              ),
-                              onPressed: () =>
-                                  setState(() => _obscureText = !_obscureText),
-                            ),
-                            onChanged: (val) => password = val,
-                            validator: (val) =>
-                                val == null || val.length < 6
-                                    ? 'Min 6 characters'
-                                    : null,
-                          ),
-                          const SizedBox(height: 30),
-
-                          loading
-                              ? const CircularProgressIndicator()
-                              : ElevatedButton.icon(
-                                  onPressed: _handleLogin,
-                                  icon: const Icon(Icons.login),
-                                  label: const Text("Login"),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.deepPurple,
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 30, vertical: 14),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(50),
-                                    ),
-                                    elevation: 6,
-                                  ),
-                                ),
-                          const SizedBox(height: 16),
-
-                          TextButton(
-                            onPressed: () {
-                              Navigator.pushReplacement(
-                                context,
-                                MaterialPageRoute(
-                                    builder: (context) => const HomeScreen()),
-                              );
-                            },
-                            child: const Text(
-                              'Continue without login',
-                              style: TextStyle(
-                                color: Colors.blueAccent,
-                                decoration: TextDecoration.underline,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-
-                          const SizedBox(height: 16),
-
-                          Align(
-                            alignment: Alignment.centerLeft,
-                            child: TextButton.icon(
-                              onPressed: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                      builder: (context) =>
-                                          const RegisterScreen()),
-                                );
-                              },
-                              icon: const Icon(Icons.person_add,
-                                  color: Colors.redAccent),
-                              label: const Text(
-                                'Register',
-                                style: TextStyle(
-                                  color: Colors.redAccent,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                      const SizedBox(height: 20),
+                      if (isLoading) const CircularProgressIndicator(),
+                    ],
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ],
       ),
     );
   }
-
-  Widget _buildBlob(Color color) {
-    return Container(
-      width: 180,
-      height: 180,
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(100),
-      ),
-    );
-  }
-
-  Widget _buildInputField({
-    required IconData icon,
-    required String hintText,
-    required Function(String) onChanged,
-    required String? Function(String?) validator,
-    bool obscureText = false,
-    Widget? suffix,
-    Color iconColor = Colors.grey,
-  }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFFF9FAFB),
-        borderRadius: BorderRadius.circular(50),
-        border: Border.all(color: Colors.deepPurple.shade100, width: 1.5),
-      ),
-      child: TextFormField(
-        obscureText: obscureText,
-        decoration: InputDecoration(
-          prefixIcon: Icon(icon, color: iconColor),
-          suffixIcon: suffix,
-          hintText: hintText,
-          hintStyle: const TextStyle(color: Colors.grey),
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
-        ),
-        onChanged: onChanged,
-        validator: validator,
-      ),
-    );
-  }
-
-  void _handleLogin() async {
-    if (_formKey.currentState!.validate()) {
-      setState(() {
-        loading = true;
-      });
-
-      try {
-        final res = await ApiService.login(email!, password!);
-        if (res.containsKey('error')) {
-  setState(() {
-    loading = false;
-  });
-  _showErrorDialog("Aapne invalid username/password dala hai.\nKripya sahi username/password daalein.");
-}
- else if (res.containsKey('access_token')) {
-          await saveToken(res['access_token']);
-          if (mounted) {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => const HomeScreen()),
-            );
-          }
-        } else {
-          setState(() {
-            loading = false;
-          });
-          _showErrorDialog('Unexpected response from server');
-        }
-      } catch (e) {
-        setState(() {
-          loading = false;
-        });
-        _showErrorDialog('Error: ${e.toString()}');
-      }
-    }
-  }
-
-  void _showErrorDialog(String errorMessage) {
-  showDialog(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: const Text("Login Failed"),
-      content: Text(errorMessage),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text("OK"),
-        ),
-      ],
-    ),
-  );
-}
 }

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'login_screen.dart';
 import 'base_scaffold.dart';
 import 'view_dashboard.dart';
 import 'address.dart';
@@ -9,8 +8,11 @@ import 'education.dart';
 import 'employment_screen.dart';
 import 'achievements_screen.dart';
 import 'general_details.dart';
+import 'trust.dart';
 
 class MrmScreen extends StatefulWidget {
+  const MrmScreen({super.key});
+
   @override
   State<MrmScreen> createState() => _MrmScreenState();
 }
@@ -20,23 +22,27 @@ class _MrmScreenState extends State<MrmScreen> {
   bool isDarkMode = false;
 
   Future<void> loadUserData() async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('token');
-    final name = prefs.getString('user_name') ?? "User";
-    isDarkMode = prefs.getBool('dark_mode') ?? false;
+  final prefs = await SharedPreferences.getInstance();
+  final token = prefs.getString('token');
+  final name = prefs.getString('user_name') ?? "User";
+  isDarkMode = prefs.getBool('dark_mode') ?? false;
 
-    if (token == null) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => LoginScreen()),
-      );
-      return;
-    }
-
+  // Agar token null hai, tab bhi redirect na kare, bas guest mode set karein
+  if (token == null) {
+    // guest mode me kuch bhi kar sakte hain, jaise userName ko "Guest" set karna
     setState(() {
-      userName = name;
+      userName = "Guest";
     });
+    // Return kar den, bina redirect kiye
+    return;
   }
+
+  // Agar token hai to user name set karo
+  setState(() {
+    userName = name;
+  });
+}
+
 
   @override
   void initState() {
@@ -51,7 +57,7 @@ class _MrmScreenState extends State<MrmScreen> {
         targetScreen = ViewDashboard();
         break;
       case 1:
-        targetScreen = AddressScreen();
+        targetScreen = AddressScreen(memberId: '96089');
         break;
       case 2:
        targetScreen = Education();
@@ -65,11 +71,11 @@ class _MrmScreenState extends State<MrmScreen> {
       case 5:
          targetScreen = GeneralDetails();
          break;
-      case 6:
-        targetScreen = ViewDashboard();
-        break;
+     case 6:
+        targetScreen = Trust();
+       break;
       case 7:
-        targetScreen = AddressScreen();
+        targetScreen = AddressScreen(memberId: '96089');
         break;
       default:
         return;
@@ -167,14 +173,14 @@ class _MrmScreenState extends State<MrmScreen> {
   physics: NeverScrollableScrollPhysics(),
   childAspectRatio: 2.8, // Adjust height vs width
   children: [
-    buildCard("सामान्य विवरण", Icons.person, 5), // Single person icon
-    buildCard("परिवार", Icons.family_restroom, 0), // Family icon
-    buildCard("पता", Icons.location_on, 1), // Address/location icon
-    buildCard("शिक्षा", Icons.school, 2), // Education icon
-    buildCard("पेशा", Icons.work, 3), // Work icon
-    buildCard("उपलबधिया", Icons.emoji_events, 4), // Achievements icon
-    buildCard("न्यास-ट्रस्ट", Icons.home_work, 6), // Property/Trust icon
-    buildCard("Option 8", Icons.settings, 7), // Settings or other
+    buildCard("सामान्य विवरण", Icons.person, 5), 
+    buildCard("परिवार", Icons.family_restroom, 0), 
+    buildCard("पता", Icons.location_on, 1), 
+    buildCard("शिक्षा", Icons.school, 2), 
+    buildCard("पेशा", Icons.work, 3), 
+    buildCard("उपलब्धियाँ", Icons.emoji_events, 4), 
+    buildCard("न्यास-ट्रस्ट", Icons.home_work, 6), 
+    buildCard("Option 8", Icons.settings, 7), 
   ],
 ),
               ],

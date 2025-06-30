@@ -1,116 +1,125 @@
-import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
-static const String baseUrl = 'http://10.0.2.2:8000/api';
- 
-  static Future<Map<String, dynamic>> register(
-      String name, String email, String password) async {
-    var url = Uri.parse('$baseUrl/register');
+  final String baseUrl = 'https://mrmapi.sadhumargi.in/api';
+
+  /// Login using member_id and password
+  Future<Map<String, dynamic>> loginWithMemberId(String memberId, String password) async {
+    final url = Uri.parse('$baseUrl/login');
+
+    try {
+      final response = await http.post(
+        url,
+        headers: {'Accept': 'application/json'},
+        body: {
+          'login': memberId,
+          'password': password,
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+
+        SharedPreferences prefs = await SharedPreferences.getInstance();
+        await prefs.setString('token', data['token']);
+        await prefs.setString('member_id', data['member_id'].toString());
+        await prefs.setString('family_id', data['family_id'].toString());
+        await prefs.setBool('is_head_of_family', data['is_head_of_family']);
+
+        return {'success': true, 'data': data};
+      } else {
+        final error = json.decode(response.body);
+        return {'success': false, 'message': error['message'] ?? 'Invalid credentials'};
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'Something went wrong. Please try again.'};
+    }
+  }
+
+/// Step 1: check mobile
+Future<Map<String, dynamic>> checkMobile(String mobile) async {
+  final url = Uri.parse('$baseUrl/check-mobile');
+
+  try {
     final response = await http.post(
       url,
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-password': 'sabjs@1008',
-      },
-      body: jsonEncode({
-        'name': name,
-        'email': email,
-        'password': password,
-        'password_confirmation': password,
-      }),
+      headers: {'Accept': 'application/json'},
+      body: {'mobile': mobile},
     );
 
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body);
-    } else {
-      return {'error': jsonDecode(response.body)};
-    }
-  }
+    final data = json.decode(response.body);
+    print("checkMobile() API RAW Response: $data"); // 🔍 debug log
 
-  static Future<Map<String, dynamic>> login(
-      String email, String password) async {
-    var url = Uri.parse('$baseUrl/login');
+    // Return the 'members' list correctly
+    return {
+      'success': response.statusCode == 200 && data['members'] != null,
+      'members': data['members'] ?? [],
+      'message': data['message'] ?? '',
+    };
+  } catch (e) {
+    print("checkMobile() error: $e"); // debug
+    return {'success': false, 'message': 'Something went wrong while checking mobile.'};
+  }
+}
+
+
+
+/// Step 2: Send OTP
+Future<Map<String, dynamic>> sendOTP(String mobile, String memberId) async {
+  final url = Uri.parse('$baseUrl/send-otp');
+
+  try {
     final response = await http.post(
       url,
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-password': 'sabjs@1008',
+      headers: {'Accept': 'application/json'},
+      body: {
+        'mobile_number': mobile, // ✅ correct key
+        'member_id': memberId,   // if required
       },
-      body: jsonEncode({'email': email, 'password': password}),
     );
 
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body);
-    } else {
-      return {'error': jsonDecode(response.body)};
-    }
+    final data = json.decode(response.body);
+    return {
+      'success': data['status'] == true,
+      'message': data['message'] ?? '',
+    };
+  } catch (e) {
+    return {
+      'success': false,
+      'message': 'Something went wrong while sending OTP.',
+    };
   }
+}
+  
+/// Step 3: Verify OTP
+Future<Map<String, dynamic>> verifyOTP(String mobile, String otp, String memberId) async {
+  final url = Uri.parse('$baseUrl/verify-otp');
 
-  static Future<Map<String, dynamic>> getUser(String token) async {
-    var url = Uri.parse('$baseUrl/user');
-    final response = await http.get(url, headers: {
-      'Content-Type': 'application/json',
-      'x-api-password': 'sabjs@1008',
-      'Authorization': 'Bearer $token',
-    });
-
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body);
-    } else {
-      return {'error': 'Unauthorized'};
-    }
-  }
-
-  static Future<List<dynamic>> getAllUsers(String token) async {
-    final url = Uri.parse('$baseUrl/users');
-    final response = await http.get(
+  try {
+    final response = await http.post(
       url,
-      headers: {
-        'Authorization': 'Bearer $token',
-        'x-api-password': 'sabjs@1008',
+      headers: {'Accept': 'application/json'},
+      body: {
+        'mobile_number': mobile, // ✅ corrected key
+        'otp': otp,
+        'member_id': memberId,
       },
     );
 
     if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      return data['users'];
+      final data = json.decode(response.body);
+
+      return {'success': true, 'data': data};
     } else {
-      return [];
+      final error = json.decode(response.body);
+      return {'success': false, 'message': error['message'] ?? 'OTP verification failed'};
     }
+  } catch (e) {
+    return {'success': false, 'message': 'Something went wrong during OTP verification'};
   }
+}
 
-  /// ✅ DELETE user
-  static Future<bool> deleteUser(int id, String token) async {
-    final url = Uri.parse('$baseUrl/users/$id');
-    final response = await http.delete(
-      url,
-      headers: {
-        'Authorization': 'Bearer $token',
-        'x-api-password': 'sabjs@1008',
-      },
-    );
 
-    return response.statusCode == 200;
-  }
-
-  /// ✅ UPDATE user
-  static Future<bool> updateUser(
-      int id, String name, String email, String token) async {
-    final url = Uri.parse('$baseUrl/users/$id');
-    final response = await http.put(
-      url,
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-        'x-api-password': 'sabjs@1008',
-      },
-      body: jsonEncode({
-        'name': name,
-        'email': email,
-      }),
-    );
-
-    return response.statusCode == 200;
-  }
 }
