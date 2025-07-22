@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'base_scaffold.dart';
 import 'change_head/change_head.dart';
 import 'change_head/create_new_family.dart';
 import 'change_head/add_new_member.dart';
@@ -8,10 +9,14 @@ class ChangeMukhiyaScreen extends StatelessWidget {
   const ChangeMukhiyaScreen({super.key});
 
   void navigateTo(BuildContext context, Widget screen) {
-    Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => screen),
+    );
   }
 
-  Widget buildCard(BuildContext context, String title, IconData icon, Widget screen) {
+  Widget buildCard(
+      BuildContext context, String title, IconData icon, Widget screen) {
     return GestureDetector(
       onTap: () => navigateTo(context, screen),
       child: Container(
@@ -49,17 +54,20 @@ class ChangeMukhiyaScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text("मुखिया बदलो")),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          children: [
-            buildCard(context, "मुखिया बदलें", Icons.swap_horiz, const ChangeHeadScreen()),
-            buildCard(context, "नया परिवार बनाएँ", Icons.group_add, const CreateNewFamilyScreen()),
-            buildCard(context, "नया सदस्य जोड़ें", Icons.person_add, const AddNewMemberScreen()),
-            buildCard(context, "अनुरोध देखें", Icons.receipt_long, const ViewRequestsScreen()),
-          ],
+    return BaseScaffold(
+      selectedIndex: -1,
+      body: Scaffold(
+     
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            children: [
+              buildCard(context, "मुखिया बदलें", Icons.swap_horiz, const ChangeHeadScreen()),
+              buildCard(context, "नया परिवार बनाएँ", Icons.group_add, const CreateNewFamilyScreen()),
+              buildCard(context, "नया सदस्य जोड़ें", Icons.person_add, const AddNewMemberScreen()),
+              buildCard(context, "अनुरोध देखें", Icons.receipt_long, const ViewRequestsScreen()),
+            ],
+          ),
         ),
       ),
     );
