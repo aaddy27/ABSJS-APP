@@ -18,6 +18,7 @@ class _AddressScreenState extends State<AddressScreen> with TickerProviderStateM
   List<String> states = [];
 
   final formKey = GlobalKey<FormState>();
+
   final Map<String, TextEditingController> controllers = {
     'address1': TextEditingController(),
     'address2': TextEditingController(),
@@ -25,7 +26,10 @@ class _AddressScreenState extends State<AddressScreen> with TickerProviderStateM
     'city': TextEditingController(),
     'district': TextEditingController(),
     'pincode': TextEditingController(),
+    'landmark': TextEditingController(),
+    'contact_number': TextEditingController(),
   };
+
 
   String selectedCountry = '';
   String selectedState = '';
@@ -41,6 +45,45 @@ class _AddressScreenState extends State<AddressScreen> with TickerProviderStateM
     loadMemberIdAndData();
     loadCountries();
   }
+
+
+Future<void> markAsPrimary(String addressId) async {
+  final url = Uri.parse("https://mrmapi.sadhumargi.in/api/mark-primary/$addressId");
+
+  final prefs = await SharedPreferences.getInstance();
+  final token = prefs.getString("token");
+
+  if (token == null || token.isEmpty) {
+    showToast("❌ Token not found");
+    return;
+  }
+
+  try {
+    final res = await http.post(
+      url,
+      headers: {
+        'Accept': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    print("Raw response: ${res.body}");
+
+    if (res.statusCode == 200) {
+      final data = jsonDecode(res.body);
+      showToast("✅ ${data['message']}");
+      // optionally reload addresses
+      await loadSavedAddresses();
+      await loadPrimaryAddress();
+    } else {
+      showToast("❌ Server Error (${res.statusCode})");
+    }
+  } catch (e) {
+    print("Exception: $e");
+    showToast("❌ Network error: $e");
+  }
+}
+
 
   Future<void> loadMemberIdAndData() async {
   final prefs = await SharedPreferences.getInstance(); // ✅ this line is REQUIRED
@@ -105,56 +148,86 @@ class _AddressScreenState extends State<AddressScreen> with TickerProviderStateM
     );
     if (response.statusCode == 200) {
       final List data = jsonDecode(response.body);
-      final stateNames = data.map<String>((s) => s['name'].toString()).toList();
+     final stateNames = data.map<String>((s) => "${s['name']}|${s['id']}").toList();
       setState(() => states = stateNames);
     }
   }
 
-  Future<void> saveOrUpdateAddress() async {
-    if (!formKey.currentState!.validate() || memberId == null) return;
+Future<void> saveOrUpdateAddress() async {
+  if (!formKey.currentState!.validate() || memberId == null) return;
 
-    final payload = {
-      "member_id": memberId,
-      "address1": controllers['address1']!.text,
-      "address2": controllers['address2']!.text,
-      "post": controllers['post']!.text,
-      "city": controllers['city']!.text,
-      "district": controllers['district']!.text,
-      "pincode": controllers['pincode']!.text,
-      "country": selectedCountry.split('|').first,
-      "state": selectedState,
-      "address_type": selectedAddressType,
-      "is_primary": 0,
-      "is_enabled": 1,
-    };
+  final prefs = await SharedPreferences.getInstance();
+  final token = prefs.getString('token'); // Use only if API is protected
 
-    final isUpdate = editId != null;
-    final url = Uri.parse(isUpdate
-        ? 'https://mrmapi.sadhumargi.in/api/update-address/$editId'
-        : 'https://mrmapi.sadhumargi.in/api/save-address');
+  final isUpdate = editId != null;
+  final url = Uri.parse(
+    isUpdate
+      ? 'https://mrmapi.sadhumargi.in/api/update-address/$editId'
+      : 'https://mrmapi.sadhumargi.in/api/save-address',
+  );
 
-    try {
-      final res = await (isUpdate
-          ? http.put(url,
-              headers: {'Content-Type': 'application/json'},
-              body: jsonEncode(payload))
-          : http.post(url,
-              headers: {'Content-Type': 'application/json'},
-              body: jsonEncode(payload)));
+final data = {
+  "member_id": memberId,
+  "address1": controllers['address1']!.text,
+  "address2": controllers['address2']!.text,
+  "post": controllers['post']!.text,
+  "city": controllers['city']!.text,
+  "district": controllers['district']!.text,
+  "pincode": controllers['pincode']!.text,
+  "landmark": controllers['landmark']!.text,
+  "contact_number": controllers['contact_number']!.text,
+  "country": selectedCountry.split('|').first,
+"state": int.tryParse(selectedState.split('|').last) ?? 0,
+  "address_type": selectedAddressType,
+  "is_primary": 0, // <-- ✅ make dynamic if needed
+  "is_enabled": 1,
+};
 
-      if (res.statusCode == 200 || res.statusCode == 201) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(isUpdate ? 'Address updated successfully!' : 'Address saved successfully!')));
-        resetForm();
-        loadSavedAddresses();
-        loadPrimaryAddress();
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: ${res.body}')));
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Network error: $e')));
+
+  try {
+    final res = await (isUpdate
+        ? http.put(
+            url,
+            headers: {
+              'Content-Type': 'application/json',
+              if (token != null) 'Authorization': 'Bearer $token',
+            },
+            body: jsonEncode(data),
+          )
+        : http.post(
+            url,
+            headers: {
+              'Content-Type': 'application/json',
+              if (token != null) 'Authorization': 'Bearer $token',
+            },
+            body: jsonEncode(data),
+          ));
+
+    final body = jsonDecode(res.body);
+
+   if (res.statusCode == 200 || res.statusCode == 201) {
+  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+    content: Text(body['message'] ?? (isUpdate ? '✅ Address updated.' : '✅ Address saved.')),
+  ));
+
+  resetForm();
+  await loadSavedAddresses();
+  await loadPrimaryAddress();
+
+  // 👇 This line will auto-switch to "Saved Addresses" tab
+  _tabController.animateTo(2);
+}
+ else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text("❌ Error: ${body['message'] ?? 'Unknown error'}"),
+      ));
     }
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text("❌ Network error: $e"),
+    ));
   }
+}
 
   void resetForm() {
     controllers.forEach((_, c) => c.clear());
@@ -166,7 +239,7 @@ class _AddressScreenState extends State<AddressScreen> with TickerProviderStateM
     setState(() {});
   }
 
-  Future<void> deleteAddress(int id) async {
+  Future<void> deleteAddress(int id) async {  
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -188,6 +261,11 @@ class _AddressScreenState extends State<AddressScreen> with TickerProviderStateM
       loadPrimaryAddress();
     }
   }
+void showToast(String message) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(content: Text(message)),
+  );
+}
 
   @override
   Widget build(BuildContext context) {
@@ -324,27 +402,49 @@ Widget buildPrimaryAddressView() {
             ),
           )),
           const SizedBox(height: 10),
-          DropdownButtonFormField<String>(
-            value: selectedCountry.isNotEmpty ? selectedCountry : null,
-            items: countries.map((c) {
-              final parts = c.split('|');
-              return DropdownMenuItem(value: c, child: Text("🌍 ${parts[0]}"));
-            }).toList(),
-            onChanged: (v) {
-              setState(() {
-                selectedCountry = v!;
-                loadStates(v);
-              });
-            },
-            decoration: const InputDecoration(labelText: '🌐 देश'),
-          ),
+DropdownButtonFormField<String>(
+  isExpanded: true, // ✅ Prevents overflow
+  value: countries.contains(selectedCountry) ? selectedCountry : null,
+  items: countries.map((c) {
+    final parts = c.split('|');
+    return DropdownMenuItem(
+      value: c,
+      child: Text(
+        "🌍 ${parts[0]}",
+        overflow: TextOverflow.ellipsis,
+      ),
+    );
+  }).toList(),
+  onChanged: (v) {
+    setState(() {
+      selectedCountry = v!;
+      selectedState = '';
+      states = [];
+      loadStates(v);
+    });
+  },
+  decoration: const InputDecoration(labelText: '🌐 देश'),
+),
+
+
           const SizedBox(height: 10),
-          DropdownButtonFormField<String>(
-            value: selectedState.isNotEmpty ? selectedState : null,
-            items: states.map((s) => DropdownMenuItem(value: s, child: Text("🏞️ $s"))).toList(),
-            onChanged: (v) => setState(() => selectedState = v!),
-            decoration: const InputDecoration(labelText: '🗺️ राज्य'),
-          ),
+        DropdownButtonFormField<String>(
+  isExpanded: true,
+  value: states.contains(selectedState) ? selectedState : null,
+  items: states.map((s) {
+    final parts = s.split('|');
+    return DropdownMenuItem(
+      value: s,
+      child: Text(
+        "🏞️ ${parts[0]}",
+        overflow: TextOverflow.ellipsis,
+      ),
+    );
+  }).toList(),
+  onChanged: (v) => setState(() => selectedState = v!),
+  decoration: const InputDecoration(labelText: '🗺️ राज्य'),
+),
+
           const SizedBox(height: 10),
           DropdownButtonFormField<String>(
             value: selectedAddressType,
@@ -400,37 +500,64 @@ Widget buildPrimaryAddressView() {
               ),
               actions: [
                 TextButton(
+
+                  
                   onPressed: () => Navigator.pop(context),
                   child: const Text("❌ बंद करें"),
                 ),
               ],
             ),
           ),
-          trailing: Wrap(
-            spacing: 8,
-            children: [
-              IconButton(
-                icon: const Icon(Icons.edit, color: Colors.blue),
-                onPressed: () {
-                  for (final k in controllers.keys) {
-                    controllers[k]?.text = a[k]?.toString() ?? '';
-                  }
-                  setState(() {
-                    selectedCountry = a['country'] ?? '';
-                    selectedState = a['state'] ?? '';
-                    selectedOriginState = a['origin_state'] ?? '';
-                    selectedAddressType = a['address_type'] ?? 'Factory';
-                    editId = a['id'];
-                  });
-                  _tabController.animateTo(1);
-                },
-              ),
-              IconButton(
-                icon: const Icon(Icons.delete, color: Colors.red),
-                onPressed: () => deleteAddress(a['id']),
-              ),
-            ],
-          ),
+trailing: Wrap(
+  spacing: 8,
+  children: [
+    IconButton(
+      icon: const Icon(Icons.edit, color: Colors.blue),
+      onPressed: () {
+        for (final k in controllers.keys) {
+          controllers[k]?.text = a[k]?.toString() ?? '';
+        }
+
+        // Find full state entry from available states
+        final fullState = states.firstWhere(
+          (s) => s.split('|').last == a['state'].toString(),
+          orElse: () => '',
+        );
+
+        setState(() {
+          selectedCountry = countries.firstWhere(
+            (c) => c.split('|').first == a['country'],
+            orElse: () => '',
+          );
+          selectedState = states.firstWhere(
+            (s) => s.split('|').last == a['state'].toString(),
+            orElse: () => '',
+          );
+          selectedOriginState = a['origin_state'] ?? '';
+          selectedAddressType = a['address_type'] ?? 'Factory';
+          editId = a['id'];
+        });
+
+        if (selectedCountry.isNotEmpty) {
+          loadStates(selectedCountry);
+        }
+
+        _tabController.animateTo(1);
+      },
+    ),
+    IconButton(
+      icon: const Icon(Icons.delete, color: Colors.red),
+      onPressed: () => deleteAddress(a['id']),
+    ),
+    IconButton(
+      icon: const Icon(Icons.star, color: Colors.orange),
+      tooltip: 'Mark as Primary',
+      onPressed: () => markAsPrimary(a['id'].toString()),
+
+    ),
+  ],
+),
+
         ),
       );
     },

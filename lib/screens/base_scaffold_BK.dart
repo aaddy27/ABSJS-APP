@@ -7,12 +7,11 @@ import 'sahitya_screen.dart';
 import 'shramnopasak_screen.dart';
 import 'shivir_screen.dart';
 import 'login_screen.dart';
-import 'member_profile_screen.dart'; // 🔁 Import this
-
 
 class BaseScaffold extends StatelessWidget {
   final int selectedIndex;
   final Widget body;
+  
 
   const BaseScaffold({
     super.key,
@@ -20,7 +19,7 @@ class BaseScaffold extends StatelessWidget {
     required this.body,
   });
 
-  void onItemTapped(BuildContext context, int index) async {
+  void onItemTapped(BuildContext context, int index) {
     if (index == selectedIndex) return;
 
     switch (index) {
@@ -75,25 +74,6 @@ class BaseScaffold extends StatelessWidget {
           ),
         );
         break;
-
-      case 5:
-        final prefs = await SharedPreferences.getInstance();
-        final memberId = prefs.getString('member_id') ?? '';
-
-        if (memberId.isNotEmpty) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (_) => MemberProfileScreen(memberId: memberId),
-               
-            ),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Member ID not found")),
-          );
-        }
-        break;
     }
   }
 
@@ -117,13 +97,13 @@ class BaseScaffold extends StatelessWidget {
         title: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           mainAxisSize: MainAxisSize.min,
-          children: [
+          children:  [
             Image.asset(
               'assets/logo.png',
               height: 50,
             ),
-            const SizedBox(width: 8),
-            const Flexible(
+            SizedBox(width: 8),
+            Flexible(
               child: Text(
                 "Sadhumargi Jain Sangh",
                 overflow: TextOverflow.ellipsis,
@@ -137,17 +117,21 @@ class BaseScaffold extends StatelessWidget {
           ],
         ),
         centerTitle: true,
-        backgroundColor: const Color(0xFF1E3A8A),
-        systemOverlayStyle: const SystemUiOverlayStyle(
+        backgroundColor: Color(0xFF1E3A8A),
+        systemOverlayStyle: SystemUiOverlayStyle(
           statusBarColor: Color(0xFF1E3A8A),
           statusBarIconBrightness: Brightness.light,
         ),
-      
+        actions: [
+          IconButton(
+            icon: Icon(Icons.logout, color: Colors.white),
+            onPressed: () => logout(context),
+          ),
+        ],
       ),
       body: body,
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-bottomNavigationBar: selectedIndex >= 0
-    ? Padding(
+      bottomNavigationBar: Padding(
         padding: const EdgeInsets.all(12.0),
         child: Container(
           decoration: BoxDecoration(
@@ -177,14 +161,12 @@ bottomNavigationBar: selectedIndex >= 0
                 _buildNavItem(Icons.menu_book, "Sahitya", 2),
                 _buildNavItem(Icons.book, "Shramnopasak", 3),
                 _buildNavItem(Icons.event, "Shivir", 4),
-                _buildNavItem(Icons.person, "Profile", 5),
+                  _buildNavItem(Icons.person, "Profile", 5), 
               ],
             ),
           ),
         ),
-      )
-    : null, // ✅ hide nav bar if index is -1
-
+      ),
     );
   }
 

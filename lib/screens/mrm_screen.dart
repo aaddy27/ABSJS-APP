@@ -2,13 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'base_scaffold.dart';
-import 'view_dashboard.dart';
+import 'family_screen.dart';
 import 'address.dart';
 import 'education.dart';
 import 'employment_screen.dart';
 import 'achievements_screen.dart';
 import 'general_details.dart';
 import 'trust.dart';
+import 'sadasyata_screen.dart';
 
 class MrmScreen extends StatefulWidget {
   final String memberId;
@@ -24,27 +25,22 @@ class _MrmScreenState extends State<MrmScreen> {
   bool isDarkMode = false;
 
   Future<void> loadUserData() async {
-  final prefs = await SharedPreferences.getInstance();
-  final token = prefs.getString('token');
-  final name = prefs.getString('user_name') ?? "User";
-  isDarkMode = prefs.getBool('dark_mode') ?? false;
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+    final name = prefs.getString('user_name') ?? "User";
+    isDarkMode = prefs.getBool('dark_mode') ?? false;
 
-  // Agar token null hai, tab bhi redirect na kare, bas guest mode set karein
-  if (token == null) {
-    // guest mode me kuch bhi kar sakte hain, jaise userName ko "Guest" set karna
+    if (token == null) {
+      setState(() {
+        userName = "Guest";
+      });
+      return;
+    }
+
     setState(() {
-      userName = "Guest";
+      userName = name;
     });
-    // Return kar den, bina redirect kiye
-    return;
   }
-
-  // Agar token hai to user name set karo
-  setState(() {
-    userName = name;
-  });
-}
-
 
   @override
   void initState() {
@@ -56,45 +52,44 @@ class _MrmScreenState extends State<MrmScreen> {
     Widget targetScreen;
     switch (index) {
       case 0:
-        targetScreen = ViewDashboard();
+        targetScreen = FamilyScreen();
         break;
       case 1:
-       targetScreen = const AddressScreen();
-
-        break;
-      case 2:
-       targetScreen = Education();
-       break;
-      case 3:
-       targetScreen = EmploymentScreen(); 
-       break;
-      case 4:
-       targetScreen = AchievementsScreen();
-      break;
-      case 5:
-         targetScreen = GeneralDetails();
-         break;
-     case 6:
-        targetScreen = Trust();
-       break;
-      case 7:
-      
         targetScreen = const AddressScreen();
         break;
+      case 2:
+        targetScreen = Education();
+        break;
+      case 3:
+        targetScreen = EmploymentScreen();
+        break;
+      case 4:
+        targetScreen = AchievementsScreen();
+        break;
+      case 5:
+        targetScreen = GeneralDetails();
+        break;
+      case 6:
+        targetScreen = Trust();
+        break;
+     case 7:
+  targetScreen = const ActivitiesScreen();
+  break;
       default:
         return;
     }
 
     Navigator.push(context, MaterialPageRoute(builder: (_) => targetScreen));
   }
+
   Widget buildCard(String title, IconData icon, int index) {
     return GestureDetector(
       onTap: () => navigateTo(index),
       child: Container(
-        width: (MediaQuery.of(context).size.width / 2) - 24, // Two cards per row
-        height: 90, // fixed height to align all cards properly
-        margin: EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        width: (MediaQuery.of(context).size.width / 2) - 24,
+        height: 90,
+        margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
@@ -102,12 +97,12 @@ class _MrmScreenState extends State<MrmScreen> {
           boxShadow: [
             BoxShadow(
               color: Colors.deepPurple.withOpacity(0.3),
-              offset: Offset(5, 5),
+              offset: const Offset(5, 5),
               blurRadius: 10,
             ),
             BoxShadow(
               color: Colors.white.withOpacity(0.8),
-              offset: Offset(-3, -3),
+              offset: const Offset(-3, -3),
               blurRadius: 6,
             ),
           ],
@@ -116,7 +111,6 @@ class _MrmScreenState extends State<MrmScreen> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            /// 🟣 Text Section
             Expanded(
               child: Text(
                 title,
@@ -129,8 +123,6 @@ class _MrmScreenState extends State<MrmScreen> {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-
-            /// 🟣 Icon Section
             Icon(
               icon,
               size: 32,
@@ -153,9 +145,7 @@ class _MrmScreenState extends State<MrmScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                SizedBox(height: 10),
-
-                /// ✅ Poster Image with SafeArea & AspectRatio
+                const SizedBox(height: 10),
                 ClipRRect(
                   borderRadius: BorderRadius.circular(14),
                   child: AspectRatio(
@@ -167,26 +157,23 @@ class _MrmScreenState extends State<MrmScreen> {
                     ),
                   ),
                 ),
-
-                SizedBox(height: 20),
-
-                /// ✅ Dashboard Buttons
+                const SizedBox(height: 20),
                 GridView.count(
-  crossAxisCount: 2,
-  shrinkWrap: true,
-  physics: NeverScrollableScrollPhysics(),
-  childAspectRatio: 2.8, // Adjust height vs width
-  children: [
-    buildCard("सामान्य विवरण", Icons.person, 5), 
-    buildCard("परिवार", Icons.family_restroom, 0), 
-    buildCard("पता", Icons.location_on, 1), 
-    buildCard("शिक्षा", Icons.school, 2), 
-    buildCard("पेशा", Icons.work, 3), 
-    buildCard("उपलब्धियाँ", Icons.emoji_events, 4), 
-    buildCard("न्यास-ट्रस्ट", Icons.home_work, 6), 
-    buildCard("Option 8", Icons.settings, 7), 
-  ],
-),
+                  crossAxisCount: 2,
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  childAspectRatio: 2.8,
+                  children: [
+                    buildCard("सामान्य विवरण", Icons.person, 5),
+                    buildCard("परिवार", Icons.family_restroom, 0),
+                    buildCard("पता", Icons.location_on, 1),
+                    buildCard("शिक्षा", Icons.school, 2),
+                    buildCard("पेशा", Icons.work, 3),
+                    buildCard("उपलब्धियाँ", Icons.emoji_events, 4),
+                    buildCard("न्यास-ट्रस्ट", Icons.home_work, 6),
+                    buildCard("सदस्यता", Icons.badge, 7),
+                  ],
+                ),
               ],
             ),
           ),

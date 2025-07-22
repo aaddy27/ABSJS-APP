@@ -50,19 +50,37 @@ Future<Map<String, dynamic>> checkMobile(String mobile) async {
     );
 
     final data = json.decode(response.body);
-    print("checkMobile() API RAW Response: $data"); // 🔍 debug log
+    print("checkMobile() API RAW Response: $data");
 
-    // Return the 'members' list correctly
-    return {
-      'success': response.statusCode == 200 && data['members'] != null,
-      'members': data['members'] ?? [],
-      'message': data['message'] ?? '',
-    };
+    if (data.containsKey('member_id')) {
+      return {
+        'success': true,
+        'single': true,
+        'members': [
+          {'member_id': data['member_id'], 'name': 'Member'}
+        ],
+        'message': data['message'] ?? '',
+      };
+    } else if (data.containsKey('members')) {
+      return {
+        'success': true,
+        'single': false,
+        'members': List<Map<String, dynamic>>.from(data['members']),
+        'message': data['message'] ?? '',
+      };
+    } else {
+      return {
+        'success': false,
+        'members': [],
+        'message': data['message'] ?? 'No members found.',
+      };
+    }
   } catch (e) {
-    print("checkMobile() error: $e"); // debug
+    print("checkMobile() error: $e");
     return {'success': false, 'message': 'Something went wrong while checking mobile.'};
   }
 }
+
 
 
 

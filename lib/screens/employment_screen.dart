@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 class EmploymentScreen extends StatefulWidget {
   const EmploymentScreen({super.key});
@@ -10,7 +13,6 @@ class EmploymentScreen extends StatefulWidget {
 class _EmploymentScreenState extends State<EmploymentScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
-  // Controllers
   final TextEditingController nameController = TextEditingController();
   final TextEditingController roleController = TextEditingController();
   final TextEditingController startYearController = TextEditingController();
@@ -21,19 +23,66 @@ class _EmploymentScreenState extends State<EmploymentScreen> with SingleTickerPr
   String selectedIndustry = '';
   String selectedBusinessType = '';
 
-  final List<String> occupations = ['Private Job', 'Teacher', 'Business', 'Other'];
-  final List<String> industryCategories = ['IT', 'Education', 'Health', 'Others'];
-  final List<String> businessTypes = ['Small', 'Medium', 'Large'];
+  final Map<String, String> occupationsMap = {
+    'Student': 'विद्यार्थी',
+    'Govt. Job': 'सरकारी नौकरी',
+    'Private Job': 'प्राइवेट नौकरी',
+    'Teacher': 'शिक्षक',
+    'Business': 'व्यापार',
+    'Industry': 'उद्योग',
+    'Profession': 'प्रोफेशन',
+    'Housewife': 'गृहिणी',
+    'Retired': 'रिटायर्ड',
+    'Other': 'अन्य',
+  };
+
+  final List<String> industryCategories = [
+    'S.I. -Below 5 cr. (Turnover)',
+    'M.I.-5-30Cr (Turnover)',
+    'L.I.-Above 30 cr (Turnover)',
+  ];
+
+  final List<String> businessTypes = [
+    'S.I. -Below 5 cr. (Turnover)',
+    'M.I.-5-30Cr (Turnover)',
+    'L.I.-Above 30 cr (Turnover)',
+  ];
 
   List<Map<String, dynamic>> employmentData = [];
-
   bool isEditing = false;
   int? editingIndex;
+  int? editingId;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    fetchBusinessData();
+  }
+
+  Future<void> fetchBusinessData() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? memberIdStr = prefs.getString('member_id');
+
+    if (memberIdStr != null) {
+      int memberId = int.parse(memberIdStr);
+      int adjustedId = memberId - 100000;
+      String apiUrl = 'https://mrmapi.sadhumargi.in/api/business/$adjustedId';
+
+      try {
+        final response = await http.get(Uri.parse(apiUrl));
+        if (response.statusCode == 200) {
+          final List<dynamic> data = jsonDecode(response.body);
+          setState(() {
+            employmentData = List<Map<String, dynamic>>.from(data);
+          });
+        } else {
+          print('❌ API Error: ${response.statusCode}');
+        }
+      } catch (e) {
+        print('❗ Exception: $e');
+      }
+    }
   }
 
   void clearForm() {
@@ -47,50 +96,130 @@ class _EmploymentScreenState extends State<EmploymentScreen> with SingleTickerPr
     selectedBusinessType = '';
     isEditing = false;
     editingIndex = null;
+    editingId = null;
   }
 
-  void addOrUpdateProfile() {
-    if (nameController.text.isEmpty || selectedOccupation.isEmpty) return;
-
-    final newData = {
-      'type': selectedOccupation,
-      'name': nameController.text,
-      'role': roleController.text,
-      'start': startYearController.text,
-      'end': endYearController.text,
-      'location': locationController.text,
-      'industry': selectedIndustry,
-      'business': selectedBusinessType,
-    };
-
-    setState(() {
-      if (isEditing && editingIndex != null) {
-        // Update existing entry
-        employmentData[editingIndex!] = newData;
-      } else {
-        // Add new entry
-        employmentData.add(newData);
-      }
-      clearForm();
-      _tabController.animateTo(1); // Switch to list tab after adding/updating
-    });
+  String normalizeDropdownValue(String value, List<String> options) {
+    return options.firstWhere(
+      (option) => option.trim().toLowerCase() == value.trim().toLowerCase(),
+      orElse: () => '',
+    );
   }
+
+  void addOrUpdateProfile() async {
+  SharedPreferences prefs = await SharedPreferences.getInstance();
+  String? memberIdStr = prefs.getString('member_id');
+
+  if (memberIdStr == null || selectedOccupation.isEmpty || nameController.text.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('कृपया सभी आवश्यक फ़ील्ड भरें')),
+    );
+    return;
+  }
+
+  int memberId = int.parse(memberIdStr);
+  int adjustedId = memberId - 100000;
+
+  final Map<String, dynamic> data = {
+    'member_id': adjustedId,
+    'business_type': selectedOccupation,
+    'business_name': nameController.text,
+    'business_role': roleController.text,
+    'business_start_year': startYearController.text,
+    'business_end_year': endYearController.text,
+    'business_location': locationController.text,
+    'industry_category': selectedIndustry,
+    'business_category': selectedBusinessType,
+  };
+
+  final String url = editingId != null
+      ? 'https://mrmapi.sadhumargi.in/api/business/$editingId'
+      : 'https://mrmapi.sadhumargi.in/api/business';
+
+  final response = await (editingId != null
+      ? http.put(Uri.parse(url), body: jsonEncode(data), headers: {'Content-Type': 'application/json'})
+      : http.post(Uri.parse(url), body: jsonEncode(data), headers: {'Content-Type': 'application/json'}));
+
+  if (response.statusCode == 200 || response.statusCode == 201) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(editingId != null ? 'पेशा अपडेट हुआ!' : 'पेशा जोड़ा गया!'),
+    ));
+    clearForm();
+    fetchBusinessData(); // Reload the list
+    _tabController.animateTo(1); // Switch to list tab
+  } else {
+    print('❌ Error: ${response.statusCode} - ${response.body}');
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+      content: Text('पेशा सहेजने में त्रुटि!'),
+    ));
+  }
+}
+
 
   void editProfile(int index) {
-    final data = employmentData[index];
-    setState(() {
-      selectedOccupation = data['type'] ?? '';
-      nameController.text = data['name'] ?? '';
-      roleController.text = data['role'] ?? '';
-      startYearController.text = data['start'] ?? '';
-      endYearController.text = data['end'] ?? '';
-      locationController.text = data['location'] ?? '';
-      selectedIndustry = data['industry'] ?? '';
-      selectedBusinessType = data['business'] ?? '';
-      isEditing = true;
-      editingIndex = index;
-      _tabController.animateTo(0); // Switch to form tab for editing
-    });
+  final data = employmentData[index];
+  setState(() {
+    selectedOccupation = data['business_type'] ?? '';
+    nameController.text = data['business_name'] ?? '';
+    roleController.text = data['business_role'] ?? '';
+    startYearController.text = data['business_start_year'].toString();
+    endYearController.text = data['business_end_year'].toString();
+    locationController.text = data['business_location'] ?? '';
+
+    // Safely normalize dropdown values
+    selectedIndustry = normalizeDropdownValue(data['industry_category'] ?? '', industryCategories);
+    selectedBusinessType = normalizeDropdownValue(data['business_category'] ?? '', businessTypes);
+
+    isEditing = true;
+    editingIndex = index;
+    editingId = data['id'];
+    _tabController.animateTo(0);
+  });
+}
+
+
+  Future<void> deleteProfile(int id) async {
+    String deleteUrl = 'https://mrmapi.sadhumargi.in/api/business/$id';
+
+    try {
+      final response = await http.delete(Uri.parse(deleteUrl));
+      if (response.statusCode == 200) {
+        setState(() {
+          employmentData.removeWhere((element) => element['id'] == id);
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('डेटा सफलतापूर्वक हटाया गया')),
+        );
+      } else {
+        print('❌ Delete failed with status: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('❗ Delete Exception: $e');
+    }
+  }
+
+  void confirmAndDeleteProfile(int id) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('पुष्टि करें'),
+        content: const Text('क्या आप वाकई इस प्रोफ़ाइल को हटाना चाहते हैं?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('नहीं'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('हाँ, हटाएं'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      deleteProfile(id);
+    }
   }
 
   @override
@@ -109,164 +238,61 @@ class _EmploymentScreenState extends State<EmploymentScreen> with SingleTickerPr
       body: TabBarView(
         controller: _tabController,
         children: [
-          // TAB 1: FORM
+          // Tab 1: Form
           SingleChildScrollView(
             padding: const EdgeInsets.all(16),
-            child: Card(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-              elevation: 6,
-              shadowColor: Colors.deepPurple.withOpacity(0.2),
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+            child: Column(
+              children: [
+                DropdownButtonFormField<String>(
+                  value: selectedOccupation.isEmpty ? null : selectedOccupation,
+                  items: occupationsMap.entries.map((entry) {
+                    return DropdownMenuItem(value: entry.key, child: Text(entry.value));
+                  }).toList(),
+                  onChanged: (value) => setState(() => selectedOccupation = value!),
+                  decoration: const InputDecoration(labelText: '🛠 पेशा *'),
+                ),
+                const SizedBox(height: 10),
+                TextField(controller: nameController, decoration: const InputDecoration(labelText: '👤 नाम')),
+                const SizedBox(height: 10),
+                TextField(controller: roleController, decoration: const InputDecoration(labelText: '📌 भूमिका')),
+                const SizedBox(height: 10),
+                Row(
                   children: [
-                    Text(
-                      isEditing ? "📝 व्यवसाय विवरण संपादित करें" : "🧾 व्यवसाय विवरण जोड़ें",
-                      style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.deepPurple),
-                    ),
-                    const SizedBox(height: 20),
-
-                    // Occupation Dropdown
-                    DropdownButtonFormField<String>(
-                      value: selectedOccupation.isEmpty ? null : selectedOccupation,
-                      items: occupations.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
-                      onChanged: (value) => setState(() => selectedOccupation = value!),
-                      decoration: InputDecoration(
-                        labelText: '🛠 पेशा *',
-                        labelStyle: const TextStyle(color: Colors.indigo),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                        prefixIcon: const Icon(Icons.work_outline, color: Colors.indigo),
-                      ),
-                    ),
-                    const SizedBox(height: 15),
-
-                    // Name
-                    TextField(
-                      controller: nameController,
-                      decoration: InputDecoration(
-                        labelText: '👤 नाम',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                        prefixIcon: const Icon(Icons.person, color: Colors.teal),
-                      ),
-                    ),
-                    const SizedBox(height: 15),
-
-                    // Role
-                    TextField(
-                      controller: roleController,
-                      decoration: InputDecoration(
-                        labelText: '📌 भूमिका',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                        prefixIcon: const Icon(Icons.assignment_ind, color: Colors.orange),
-                      ),
-                    ),
-                    const SizedBox(height: 15),
-
-                    // Start and End Year
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: startYearController,
-                            keyboardType: TextInputType.number,
-                            decoration: InputDecoration(
-                              labelText: '🔰 आरंभ वर्ष',
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                              prefixIcon: const Icon(Icons.calendar_today, color: Colors.purple),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: TextField(
-                            controller: endYearController,
-                            keyboardType: TextInputType.number,
-                            decoration: InputDecoration(
-                              labelText: '🏁 समाप्ति वर्ष',
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                              prefixIcon: const Icon(Icons.calendar_month, color: Colors.redAccent),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 15),
-
-                    // Location
-                    TextField(
-                      controller: locationController,
-                      decoration: InputDecoration(
-                        labelText: '📍 स्थान',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                        prefixIcon: const Icon(Icons.location_on, color: Colors.brown),
-                      ),
-                    ),
-                    const SizedBox(height: 15),
-
-                    // Industry Category Dropdown
-                    DropdownButtonFormField<String>(
-                      value: selectedIndustry.isEmpty ? null : selectedIndustry,
-                      items: industryCategories.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
-                      onChanged: (value) => setState(() => selectedIndustry = value!),
-                      decoration: InputDecoration(
-                        labelText: '🏭 औद्योगिक श्रेणी',
-                        labelStyle: const TextStyle(color: Colors.indigo),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                        prefixIcon: const Icon(Icons.category_outlined, color: Colors.indigo),
-                      ),
-                    ),
-                    const SizedBox(height: 15),
-
-                    // Business Type Dropdown
-                    DropdownButtonFormField<String>(
-                      value: selectedBusinessType.isEmpty ? null : selectedBusinessType,
-                      items: businessTypes.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
-                      onChanged: (value) => setState(() => selectedBusinessType = value!),
-                      decoration: InputDecoration(
-                        labelText: '🏢 व्यापार वर्ग',
-                        labelStyle: const TextStyle(color: Colors.indigo),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                        prefixIcon: const Icon(Icons.business_center, color: Colors.blueAccent),
-                      ),
-                    ),
-
-                    const SizedBox(height: 25),
-
-                    // Add/Update Button
-                    Center(
-                      child: ElevatedButton.icon(
-                        onPressed: addOrUpdateProfile,
-                        icon: Icon(isEditing ? Icons.save : Icons.add_circle_outline, size: 24),
-                        label: Text(isEditing ? 'अपडेट करें' : 'प्रोफ़ाइल में जोड़ें'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.deepPurple,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 14),
-                          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        ),
-                      ),
-                    ),
-
-                    if (isEditing)
-                      TextButton(
-                        onPressed: () {
-                          setState(() {
-                            clearForm();
-                          });
-                        },
-                        child: const Text('संपादन रद्द करें', style: TextStyle(color: Colors.red)),
-                      ),
+                    Expanded(child: TextField(controller: startYearController, decoration: const InputDecoration(labelText: '🔰 आरंभ वर्ष'))),
+                    const SizedBox(width: 10),
+                    Expanded(child: TextField(controller: endYearController, decoration: const InputDecoration(labelText: '🏁 समाप्ति वर्ष'))),
                   ],
                 ),
-              ),
+                const SizedBox(height: 10),
+                TextField(controller: locationController, decoration: const InputDecoration(labelText: '📍 स्थान')),
+                const SizedBox(height: 10),
+                DropdownButtonFormField<String>(
+  value: industryCategories.contains(selectedIndustry) ? selectedIndustry : null,
+  items: industryCategories.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+  onChanged: (value) => setState(() => selectedIndustry = value!),
+  decoration: const InputDecoration(labelText: '🏭 औद्योगिक श्रेणी'),
+),
+
+                const SizedBox(height: 10),
+                DropdownButtonFormField<String>(
+  value: businessTypes.contains(selectedBusinessType) ? selectedBusinessType : null,
+  items: businessTypes.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+  onChanged: (value) => setState(() => selectedBusinessType = value!),
+  decoration: const InputDecoration(labelText: '🏢 व्यापार वर्ग'),
+),
+
+                const SizedBox(height: 20),
+                ElevatedButton(
+                  onPressed: addOrUpdateProfile,
+                  child: Text(isEditing ? 'अपडेट करें' : 'प्रोफ़ाइल जोड़ें'),
+                ),
+              ],
             ),
           ),
 
-          // TAB 2: LIST
+          // Tab 2: List
           Padding(
-            padding: const EdgeInsets.all(12.0),
+            padding: const EdgeInsets.all(12),
             child: employmentData.isEmpty
                 ? const Center(child: Text('कोई डेटा उपलब्ध नहीं है'))
                 : ListView.builder(
@@ -274,36 +300,26 @@ class _EmploymentScreenState extends State<EmploymentScreen> with SingleTickerPr
                     itemBuilder: (context, index) {
                       final data = employmentData[index];
                       return Card(
-                        elevation: 3,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        margin: const EdgeInsets.symmetric(vertical: 8),
-                        child: Padding(
-                          padding: const EdgeInsets.all(16.0),
-                          child: Column(
+                        child: ListTile(
+                          title: Text(occupationsMap[data['business_type']] ?? data['business_type'] ?? ''),
+                          subtitle: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                data['type'] ?? '',
-                                style: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.deepPurple,
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              Text('नाम: ${data['name'] ?? '-'}'),
-                              Text('भूमिका: ${data['role'] ?? '-'}'),
-                              Text('कार्यकाल: ${data['start'] ?? '-'} से ${data['end'] ?? '-'}'),
-                              Text('स्थान: ${data['location'] ?? '-'}'),
-                              Text('औद्योगिक श्रेणी: ${data['industry'] ?? '-'}'),
-                              Text('व्यापार वर्ग: ${data['business'] ?? '-'}'),
-                              Align(
-                                alignment: Alignment.centerRight,
-                                child: IconButton(
-                                  icon: const Icon(Icons.edit, color: Colors.deepPurple),
-                                  onPressed: () => editProfile(index),
-                                  tooltip: 'संपादित करें',
-                                ),
+                              Text('नाम: ${data['business_name']}'),
+                              Text('भूमिका: ${data['business_role']}'),
+                              Text('कार्यकाल: ${data['business_start_year']} से ${data['business_end_year']}'),
+                              Text('स्थान: ${data['business_location']}'),
+                              Text('औद्योगिक श्रेणी: ${data['industry_category']}'),
+                              Text('व्यापार वर्ग: ${data['business_category']}'),
+                            ],
+                          ),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(icon: const Icon(Icons.edit), onPressed: () => editProfile(index)),
+                              IconButton(
+                                icon: const Icon(Icons.delete, color: Colors.red),
+                                onPressed: () => confirmAndDeleteProfile(data['id']),
                               ),
                             ],
                           ),

@@ -5,6 +5,8 @@ import 'sahitya_screen.dart';
 import 'login_screen.dart';
 import 'mrm_screen.dart';
 import 'upcoming_events_screen.dart';
+import 'member_profile_screen.dart';
+import 'vihar_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -26,28 +28,34 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   final List<Widget> _screens = [
-    const HomeDashboard(),
-    UpcomingEventsScreen(),
-    SahityaScreen(),
-    const Center(child: Text("Shamnopasak Coming Soon")),
-    const Center(child: Text("Shivir Coming Soon")),
-  ];
+  const HomeDashboard(),
+  UpcomingEventsScreen(),
+  SahityaScreen(),
+  const Center(child: Text("Shamnopasak Coming Soon")),
+  const Center(child: Text("Shivir Coming Soon")),
+  const Center(child: CircularProgressIndicator()), // temporary while loading profile
+];
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
+
+@override
+Widget build(BuildContext context) {
+  return WillPopScope(
+    onWillPop: () async => false,  // 👈 disables back button
+    child: Scaffold(
       appBar: AppBar(
         title: Padding(
           padding: const EdgeInsets.only(left: 8.0),
           child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: const [
-              CircleAvatar(
-                backgroundImage: AssetImage('assets/logo.png'),
-                radius: 20,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Image.asset(
+                'assets/logo.png',
+                height: 75,
+                width: 75,
+                fit: BoxFit.contain,
               ),
-              SizedBox(width: 8),
-              Text(
+              const SizedBox(width: 10),
+              const Text(
                 "Sadhumargi Jain Sangh",
                 style: TextStyle(
                   color: Colors.white,
@@ -58,18 +66,12 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
         ),
-        centerTitle: true,
         backgroundColor: const Color(0xFF1E3A8A),
         systemOverlayStyle: const SystemUiOverlayStyle(
           statusBarColor: Color(0xFF1E3A8A),
           statusBarIconBrightness: Brightness.light,
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout, color: Colors.white),
-            onPressed: logout,
-          ),
-        ],
+        
       ),
       body: _screens[_currentIndex],
       bottomNavigationBar: Padding(
@@ -95,24 +97,46 @@ class _HomeScreenState extends State<HomeScreen> {
               unselectedItemColor: const Color(0xFF1E3A8A),
               backgroundColor: Colors.transparent,
               elevation: 0,
-              onTap: (index) {
-                setState(() {
-                  _currentIndex = index;
-                });
-              },
-              items: [
-                _buildNavItem(Icons.home, "Home", 0),
-                _buildNavItem(Icons.access_time, "Events", 1),
-                _buildNavItem(Icons.menu_book, "Sahitya", 2),
-                _buildNavItem(Icons.book, "Shamnopasak", 3),
-                _buildNavItem(Icons.event, "Shivir", 4),
-              ],
+              onTap: (index) async {
+  if (index == 5) {
+    final prefs = await SharedPreferences.getInstance();
+    final memberId = prefs.getString('member_id') ?? '';
+
+    if (memberId.isNotEmpty) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => MemberProfileScreen(memberId: memberId),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Member ID not found")),
+      );
+    }
+  } else {
+    setState(() {
+      _currentIndex = index;
+    });
+  }
+},
+
+             items: [
+  _buildNavItem(Icons.home, "Home", 0),
+  _buildNavItem(Icons.access_time, "Events", 1),
+  _buildNavItem(Icons.menu_book, "Sahitya", 2),
+  _buildNavItem(Icons.book, "Shamnopasak", 3),
+  _buildNavItem(Icons.event, "Shivir", 4),
+  _buildNavItem(Icons.person, "Profile", 5), // ✅ New
+],
             ),
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
+
 
   BottomNavigationBarItem _buildNavItem(IconData icon, String label, int index) {
     bool isSelected = _currentIndex == index;
@@ -182,7 +206,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
       {"title": "श्री संघ", "image": "assets/logo_11zon.png", "screen": null},
       {"title": "महिला समिति", "image": "assets/images/mslogo.png", "screen": null},
       {"title": "युवा संघ", "image": "assets/images/yuva.png", "screen": null},
-      {"title": "विहार", "image": "assets/images/vihar_seva.jpg", "screen": null},
+      {"title": "विहार", "image": "assets/images/vihar_seva.jpg", "screen": const ViharScreen()},
     ];
 
     double width = MediaQuery.of(context).size.width;
@@ -220,9 +244,10 @@ class _HomeDashboardState extends State<HomeDashboard> {
               itemCount: dashboardItems.length,
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 2,
-                crossAxisSpacing: 10,
-                mainAxisSpacing: 12,
-                childAspectRatio: 0.85,
+                //card ke bich ke gap ko km yada krne ke liye 
+                crossAxisSpacing: 6,
+                mainAxisSpacing: 8,
+                childAspectRatio: 0.90,
               ),
               itemBuilder: (context, index) {
                 final item = dashboardItems[index];

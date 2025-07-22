@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
-import 'base_scaffold.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:confetti/confetti.dart';
 
 class AchievementsScreen extends StatefulWidget {
   const AchievementsScreen({super.key});
@@ -8,227 +11,356 @@ class AchievementsScreen extends StatefulWidget {
   State<AchievementsScreen> createState() => _AchievementsScreenState();
 }
 
-class _AchievementsScreenState extends State<AchievementsScreen>
-    with SingleTickerProviderStateMixin {
+class _AchievementsScreenState extends State<AchievementsScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  late ConfettiController _confettiController;
 
-  final List<String> fields = ['Politics', 'Profession'];
-  final List<String> levels = ['International', 'Local'];
-  final List<String> types = ['Felicitation', 'Award'];
-
-  String? selectedField, selectedLevel, selectedType, selectedYear;
   final TextEditingController detailsController = TextEditingController();
+  String? selectedField, selectedLevel, selectedType, selectedYear;
+  int? editingId;
+
+  List<Map<String, dynamic>> achievements = [];
+
+  final Map<String, String> fieldMap = {
+    'Politics': 'राजनीति',
+    'Profession': 'पेशेवर',
+    'Business': 'व्यवसाय',
+    'Education': 'शिक्षा',
+    'Social': 'समाज',
+    'Sports': 'खेल',
+    'Other': 'अन्य',
+  };
+
+  final Map<String, String> levelMap = {
+    'Local': 'स्थानीय',
+    'Regional': 'क्षेत्रीय',
+    'National': 'राष्ट्रीय',
+    'International': 'अंतरराष्ट्रीय',
+    'Other': 'अन्य',
+  };
+
+  final Map<String, String> typeMap = {
+    'Post': 'पद',
+    'Award': 'पुरस्कार',
+    'Felicitation': 'सम्मान',
+    'Other': 'अन्य',
+  };
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _confettiController = ConfettiController(duration: const Duration(seconds: 3));
+
+    _tabController.addListener(() {
+      if (_tabController.index == 1 && !_tabController.indexIsChanging) {
+        _confettiController.play();
+      }
+    });
+
+    fetchAchievements();
   }
 
   @override
-  Widget build(BuildContext context) {
-    return BaseScaffold(
-      selectedIndex: 0,
-      body: Column(
-        children: [
-          const Padding(
-            padding: EdgeInsets.all(12.0),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                '📝 उल्लेखनीय उपलब्धियाँ',
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.deepPurple,
-                ),
-              ),
-            ),
-          ),
-          Container(
-            decoration: const BoxDecoration(
-              border: Border(bottom: BorderSide(color: Colors.grey, width: 0.5)),
-            ),
-            child: TabBar(
-              controller: _tabController,
-              tabs: const [
-                Tab(icon: Icon(Icons.add), text: 'Add Achievement'),
-                Tab(icon: Icon(Icons.list_alt), text: 'View Achievements'),
-              ],
-              labelColor: Colors.deepPurple,
-              unselectedLabelColor: Colors.black54,
-              indicatorColor: Colors.deepPurple,
-            ),
-          ),
-          Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: [
-                buildFormTab(),
-                buildListTab(),
-              ],
-            ),
-          ),
+  void dispose() {
+    _tabController.dispose();
+    _confettiController.dispose();
+    super.dispose();
+  }
+
+  Future<void> fetchAchievements() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? memberIdStr = prefs.getString('member_id');
+
+    if (memberIdStr != null) {
+      int adjustedId = int.parse(memberIdStr) - 100000;
+      String url = 'https://mrmapi.sadhumargi.in/api/achievement/$adjustedId';
+
+      try {
+        final response = await http.get(Uri.parse(url));
+        if (response.statusCode == 200) {
+          final List<dynamic> data = jsonDecode(response.body);
+          setState(() {
+            achievements = List<Map<String, dynamic>>.from(data);
+          });
+        }
+      } catch (e) {
+        debugPrint("Exception: $e");
+      }
+    }
+  }
+
+  Future<void> submitAchievement() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? memberIdStr = prefs.getString('member_id');
+
+    if (memberIdStr == null || selectedField == null || selectedLevel == null || selectedType == null || detailsController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('कृपया सभी आवश्यक फ़ील्ड भरें')),
+      );
+      return;
+    }
+
+    int adjustedId = int.parse(memberIdStr) - 100000;
+
+    final data = {
+      'member_id': adjustedId,
+      'achievement_sector': selectedField,
+      'achievement_level': selectedLevel,
+      'achievement_type': selectedType,
+      'achievement_year': selectedYear ?? '',
+      'achievement_detail': detailsController.text.trim(),
+    };
+
+    final url = editingId == null
+        ? 'https://mrmapi.sadhumargi.in/api/achievement'
+        : 'https://mrmapi.sadhumargi.in/api/achievement/$editingId';
+
+    final response = await (editingId == null
+        ? http.post(Uri.parse(url), headers: {'Content-Type': 'application/json'}, body: jsonEncode(data))
+        : http.put(Uri.parse(url), headers: {'Content-Type': 'application/json'}, body: jsonEncode(data)));
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(editingId == null ? '✅ उपलब्धि जोड़ी गई' : '✅ उपलब्धि अपडेट की गई'),
+        backgroundColor: Colors.green,
+      ));
+      clearForm();
+      fetchAchievements();
+      _tabController.animateTo(1);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('❌ प्रक्रिया विफल रही'),
+        backgroundColor: Colors.red,
+      ));
+    }
+  }
+
+  Future<void> deleteAchievement(int id) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('पुष्टि करें'),
+        content: const Text('क्या आप इस उपलब्धि को हटाना चाहते हैं?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('नहीं')),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('हाँ')),
         ],
       ),
     );
+
+    if (confirmed == true) {
+      final response = await http.delete(Uri.parse('https://mrmapi.sadhumargi.in/api/achievement/$id'));
+      if (response.statusCode == 200) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('🗑️ उपलब्धि हटाई गई'),
+          backgroundColor: Colors.orange,
+        ));
+        fetchAchievements();
+      }
+    }
   }
 
-  Widget buildFormTab() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        children: [
-          buildDropdown("क्षेत्र *", fields, selectedField,
-              (value) => setState(() => selectedField = value), Icons.public),
-          buildDropdown("स्तर *", levels, selectedLevel,
-              (value) => setState(() => selectedLevel = value), Icons.star),
-          buildDropdown("प्रकार *", types, selectedType,
-              (value) => setState(() => selectedType = value), Icons.label),
-          buildTextField("वर्ष", (value) => selectedYear = value,
-              icon: Icons.calendar_today),
-          buildTextField("विवरण *", null,
-              controller: detailsController, icon: Icons.description),
-          const SizedBox(height: 20),
-          ElevatedButton.icon(
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Achievement added (dummy)!')),
-              );
-            },
-            icon: const Icon(Icons.save),
-            label: const Text("प्रोफाइल में जोड़ें"),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.green,
-              minimumSize: const Size(double.infinity, 50),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10)),
-            ),
-          ),
-        ],
+  void editAchievement(Map<String, dynamic> data) {
+    setState(() {
+      editingId = data['id'];
+      selectedField = data['achievement_sector'];
+      selectedLevel = data['achievement_level'];
+      selectedType = data['achievement_type'];
+      selectedYear = data['achievement_year'].toString();
+      detailsController.text = data['achievement_detail'] ?? '';
+      _tabController.animateTo(0);
+    });
+  }
+
+  void clearForm() {
+    selectedField = null;
+    selectedLevel = null;
+    selectedType = null;
+    selectedYear = null;
+    detailsController.clear();
+    editingId = null;
+  }
+
+  Widget buildDropdown(String label, Icon icon, Map<String, String> map, String? selectedValue, Function(String?) onChanged) {
+    return DropdownButtonFormField<String>(
+      value: selectedValue,
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: icon,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
       ),
-    );
-  }
-
-  Widget buildListTab() {
-    final dummyData = [
-      {
-        "field": "Politics",
-        "level": "International",
-        "type": "Felicitation",
-        "details": "MLA",
-        "year": "2022"
-      },
-      {
-        "field": "Profession",
-        "level": "Local",
-        "type": "Award",
-        "details": "Good Work kiya tha",
-        "year": "2005"
-      },
-    ];
-
-    return ListView.builder(
-      padding: const EdgeInsets.all(12),
-      itemCount: dummyData.length,
-      itemBuilder: (context, index) {
-        final item = dummyData[index];
-        return Card(
-          margin: const EdgeInsets.only(bottom: 14),
-          elevation: 3,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Icon(Icons.emoji_events, color: Colors.amber),
-                    const SizedBox(width: 8),
-                    Text(
-                      "क्रमांक: ${index + 1}",
-                      style: const TextStyle(
-                          fontWeight: FontWeight.bold, fontSize: 16),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                infoRow(Icons.public, "क्षेत्र", item["field"]),
-                infoRow(Icons.star, "स्तर", item["level"]),
-                infoRow(Icons.label, "प्रकार", item["type"]),
-                infoRow(Icons.description, "विवरण", item["details"]),
-                infoRow(Icons.calendar_month, "वर्ष", item["year"]),
-                const SizedBox(height: 10),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.edit, color: Colors.orange),
-                      onPressed: () {},
-                      tooltip: "Edit",
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.delete, color: Colors.red),
-                      onPressed: () {},
-                      tooltip: "Delete",
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
+      items: map.entries.map((entry) {
+        return DropdownMenuItem<String>(
+          value: entry.key,
+          child: Text(entry.value),
         );
-      },
+      }).toList(),
+      onChanged: onChanged,
     );
   }
 
-  Widget infoRow(IconData icon, String label, String? value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Row(
+  Widget buildTextField(String label, Icon icon, {TextEditingController? controller, Function(String)? onChanged}) {
+    return TextFormField(
+      controller: controller,
+      onChanged: onChanged,
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: icon,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
+
+ Widget buildFormTab() {
+  return SafeArea(
+    child: SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Card(
+        elevation: 4,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min, // important
+            children: [
+              buildDropdown('क्षेत्र *', const Icon(Icons.category), fieldMap, selectedField, (value) => setState(() => selectedField = value)),
+              const SizedBox(height: 12),
+              buildDropdown('स्तर *', const Icon(Icons.stairs), levelMap, selectedLevel, (value) => setState(() => selectedLevel = value)),
+              const SizedBox(height: 12),
+              buildDropdown('प्रकार *', const Icon(Icons.emoji_events), typeMap, selectedType, (value) => setState(() => selectedType = value)),
+              const SizedBox(height: 12),
+              buildTextField('वर्ष', const Icon(Icons.calendar_today), onChanged: (value) => selectedYear = value),
+              const SizedBox(height: 12),
+              buildTextField('विवरण *', const Icon(Icons.description), controller: detailsController),
+              const SizedBox(height: 20),
+              ElevatedButton.icon(
+                icon: Icon(editingId == null ? Icons.add : Icons.save),
+                label: Text(editingId == null ? 'प्रोफाइल में जोड़ें' : 'अपडेट करें'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.teal,
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                onPressed: submitAchievement,
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+Widget buildListTab() {
+  return SafeArea(
+    child: Container(
+      padding: const EdgeInsets.all(12),
+      child: achievements.isEmpty
+          ? const Center(child: Text('😐 कोई उपलब्धि नहीं मिली।'))
+          : ListView.builder(
+              shrinkWrap: true,
+              itemCount: achievements.length,
+              itemBuilder: (context, index) {
+                final data = achievements[index];
+                return Card(
+                  elevation: 3,
+                  margin: const EdgeInsets.symmetric(vertical: 6),
+                  child: ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor: Colors.teal.shade100,
+                      child: Text(
+                        '${index + 1}',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    title: Text(
+                      fieldMap[data['achievement_sector']] ?? data['achievement_sector'],
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('📍 स्तर: ${levelMap[data['achievement_level']] ?? data['achievement_level']}'),
+                        Text('🏆 प्रकार: ${typeMap[data['achievement_type']] ?? data['achievement_type']}'),
+                        Text('📅 वर्ष: ${data['achievement_year']}'),
+                        Text('📝 विवरण: ${data['achievement_detail']}'),
+                      ],
+                    ),
+                    trailing: Wrap(
+                      spacing: 8,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.edit, color: Colors.blue),
+                          onPressed: () => editAchievement(data),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.delete, color: Colors.red),
+                          onPressed: () => deleteAchievement(data['id']),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+    ),
+  );
+}
+
+
+  @override
+  Widget build(BuildContext context) {
+return Scaffold(
+  resizeToAvoidBottomInset: true, // 🟢 this allows screen to resize when keyboard appears
+  appBar: AppBar(
+  backgroundColor: Colors.indigo.shade700, // 🔵 Dark Blue
+  title: const Text(
+    '📝 उपलब्धियाँ',
+    style: TextStyle(color: Colors.white), // Text color white
+  ),
+  bottom: TabBar(
+    controller: _tabController,
+    indicatorColor: Colors.white,
+    labelColor: Colors.white,
+    unselectedLabelColor: Colors.white70,
+    tabs: const [
+      Tab(icon: Icon(Icons.add, color: Colors.white), text: 'जोड़ें'),
+      Tab(icon: Icon(Icons.list, color: Colors.white), text: 'सूची'),
+    ],
+  ),
+),
+
+  body: Stack(
+    children: [
+      TabBarView(
+        controller: _tabController,
         children: [
-          Icon(icon, size: 20, color: Colors.grey[700]),
-          const SizedBox(width: 8),
-          Text("$label: ",
-              style: const TextStyle(fontWeight: FontWeight.w600)),
-          Expanded(child: Text(value ?? "")),
+          buildFormTab(),
+          buildListTab(),
         ],
       ),
-    );
-  }
-
-  Widget buildDropdown(String label, List<String> items, String? selected,
-      Function(String?) onChanged, IconData icon) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: DropdownButtonFormField<String>(
-        decoration: InputDecoration(
-          labelText: label,
-          prefixIcon: Icon(icon),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-        ),
-        value: selected,
-        items:
-            items.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
-        onChanged: onChanged,
-      ),
-    );
-  }
-
-  Widget buildTextField(String label, Function(String)? onChanged,
-      {TextEditingController? controller, IconData? icon}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: TextFormField(
-        controller: controller,
-        onChanged: onChanged,
-        decoration: InputDecoration(
-          labelText: label,
-          prefixIcon: icon != null ? Icon(icon) : null,
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+      Align(
+        alignment: Alignment.topCenter,
+        child: ConfettiWidget(
+          confettiController: _confettiController,
+          blastDirectionality: BlastDirectionality.explosive,
+          numberOfParticles: 30,
+          emissionFrequency: 0.05,
+          maxBlastForce: 20,
+          minBlastForce: 10,
+          gravity: 0.4,
+          colors: const [
+            Colors.red,
+            Colors.green,
+            Colors.blue,
+            Colors.orange,
+            Colors.purple,
+          ],
         ),
       ),
-    );
+    ],
+  ),
+);
   }
 }
