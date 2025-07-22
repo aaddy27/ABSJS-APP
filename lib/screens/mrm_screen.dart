@@ -10,6 +10,7 @@ import 'achievements_screen.dart';
 import 'general_details.dart';
 import 'trust.dart';
 import 'sadasyata_screen.dart';
+import 'change_mukhiya_screen.dart'; // 👈 Make sure this exists
 
 class MrmScreen extends StatefulWidget {
   final String memberId;
@@ -23,12 +24,14 @@ class MrmScreen extends StatefulWidget {
 class _MrmScreenState extends State<MrmScreen> {
   String userName = '';
   bool isDarkMode = false;
+  bool isHeadOfFamily = false;
 
   Future<void> loadUserData() async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
     final name = prefs.getString('user_name') ?? "User";
     isDarkMode = prefs.getBool('dark_mode') ?? false;
+    isHeadOfFamily = prefs.getBool('is_head_of_family') ?? true; // ✅ NEW
 
     if (token == null) {
       setState(() {
@@ -72,9 +75,12 @@ class _MrmScreenState extends State<MrmScreen> {
       case 6:
         targetScreen = Trust();
         break;
-     case 7:
-  targetScreen = const ActivitiesScreen();
-  break;
+      case 7:
+        targetScreen = const ActivitiesScreen();
+        break;
+      case 8:
+        targetScreen = ChangeMukhiyaScreen(); // ✅ NEW
+        break;
       default:
         return;
     }
@@ -172,6 +178,8 @@ class _MrmScreenState extends State<MrmScreen> {
                     buildCard("उपलब्धियाँ", Icons.emoji_events, 4),
                     buildCard("न्यास-ट्रस्ट", Icons.home_work, 6),
                     buildCard("सदस्यता", Icons.badge, 7),
+                    if (isHeadOfFamily)
+                      buildCard("मुखिया बदलो", Icons.switch_account, 8),
                   ],
                 ),
               ],
