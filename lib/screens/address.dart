@@ -519,7 +519,7 @@ trailing: Wrap(
         }
 
         // Find full state entry from available states
-        final fullState = states.firstWhere(
+        states.firstWhere(
           (s) => s.split('|').last == a['state'].toString(),
           orElse: () => '',
         );
