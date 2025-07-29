@@ -143,7 +143,7 @@ class _MrmScreenState extends State<MrmScreen> {
   @override
   Widget build(BuildContext context) {
     return BaseScaffold(
-      selectedIndex: 0,
+      selectedIndex: -1,
       body: SafeArea(
         child: SingleChildScrollView(
           child: Padding(

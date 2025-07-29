@@ -7,6 +7,10 @@ import 'mrm_screen.dart';
 import 'upcoming_events_screen.dart';
 import 'member_profile_screen.dart';
 import 'vihar_screen.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:laravel_auth_flutter/screens/shree_sangh/home_screen.dart' as shree;
+
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -26,6 +30,9 @@ class _HomeScreenState extends State<HomeScreen> {
       MaterialPageRoute(builder: (context) => LoginScreen()),
     );
   }
+
+
+
 
   final List<Widget> _screens = [
   const HomeDashboard(),
@@ -163,26 +170,73 @@ class HomeDashboard extends StatefulWidget {
 
 class _HomeDashboardState extends State<HomeDashboard> {
   String? memberId;
+  String? thoughtDate;
+String? thoughtText;
+bool isThoughtLoading = true;
+String? viharDate;
+String? viharThana;
+String? viharLocation;
+bool isViharLoading = true;
 
-  final List<String> imageList = const [
+ final List<String> imageList = const [
     'assets/images/slider1.jpg',
     'assets/images/slider2.jpg',
     'assets/images/slider3.jpg',
   ];
 
-  final List<String> quotes = const [
-    "Truth is the highest religion.",
-    "Non-violence is the greatest virtue.",
-    "Control your desires, attain liberation.",
-    "Right knowledge leads to right conduct.",
-    "Live and let live."
-  ];
 
   @override
-  void initState() {
-    super.initState();
-    loadMemberId();
+void initState() {
+  super.initState();
+  loadMemberId();
+  fetchLatestThought();
+  fetchLatestVihar();
+}
+
+Future<void> fetchLatestThought() async {
+  try {
+    final response = await http.get(Uri.parse('https://website.sadhumargi.in/api/latest-thought'));
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      setState(() {
+        thoughtDate = data['date'];
+        thoughtText = data['thought'];
+        isThoughtLoading = false;
+      });
+    } else {
+      setState(() {
+        isThoughtLoading = false;
+      });
+    }
+  } catch (e) {
+    setState(() {
+      isThoughtLoading = false;
+    });
   }
+}
+Future<void> fetchLatestVihar() async {
+  try {
+    final response = await http.get(Uri.parse('https://website.sadhumargi.in/api/vihar/latest'));
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      setState(() {
+        viharDate = data['formatted_date'];
+        viharThana = data['aadi_thana'];
+        viharLocation = data['location'];
+        isViharLoading = false;
+      });
+    } else {
+      setState(() {
+        isViharLoading = false;
+      });
+    }
+  } catch (e) {
+    setState(() {
+      isViharLoading = false;
+    });
+  }
+}
+
 
   Future<void> loadMemberId() async {
     final prefs = await SharedPreferences.getInstance();
@@ -203,7 +257,12 @@ class _HomeDashboardState extends State<HomeDashboard> {
         "image": "assets/images/mrm.jpg",
         "screen": MrmScreen(memberId: memberId!), // 👈 Pass memberId here
       },
-      {"title": "श्री संघ", "image": "assets/logo_11zon.png", "screen": null},
+{
+  "title": "श्री संघ",
+  "image": "assets/logo_11zon.png",
+  "screen": const shree.HomeScreen(), // ✅ corrected
+},
+
       {"title": "महिला समिति", "image": "assets/images/mslogo.png", "screen": null},
       {"title": "युवा संघ", "image": "assets/images/yuva.png", "screen": null},
       {"title": "विहार", "image": "assets/images/vihar_seva.jpg", "screen": const ViharScreen()},
@@ -261,87 +320,109 @@ class _HomeDashboardState extends State<HomeDashboard> {
               },
             ),
             const SizedBox(height: 30),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Colors.black12,
-                    blurRadius: 6,
-                    offset: Offset(2, 4),
-                  ),
-                ],
-                border: Border.all(color: Color(0xFFE0E0E0)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    "📜 Quotes of the Day",
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF1E3A8A),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    height: 80,
-                    child: PageView.builder(
-                      itemCount: quotes.length,
-                      controller: PageController(viewportFraction: 0.9),
-                      itemBuilder: (context, index) {
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 6),
-                          child: Container(
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [
-                                  Colors.orange.shade50,
-                                  Colors.orange.shade100
-                                ],
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                              ),
-                              borderRadius: BorderRadius.circular(12),
-                              boxShadow: const [
-                                BoxShadow(
-                                  color: Colors.black12,
-                                  blurRadius: 4,
-                                  offset: Offset(2, 2),
-                                ),
-                              ],
-                            ),
-                            padding: const EdgeInsets.all(12),
-                            child: Row(
-                              children: [
-                                const Icon(Icons.format_quote,
-                                    color: Colors.deepOrange),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: Text(
-                                    quotes[index],
-                                    style: const TextStyle(
-                                      fontStyle: FontStyle.italic,
-                                      fontWeight: FontWeight.w500,
-                                      color: Colors.black87,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ],
+           isThoughtLoading
+  ? const Center(child: CircularProgressIndicator())
+  : Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: const [
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 6,
+            offset: Offset(2, 4),
+          ),
+        ],
+        border: Border.all(color: Color(0xFFE0E0E0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            "🧠 आज का विचार",
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF1E3A8A),
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (thoughtDate != null)
+            Text(
+              "📅 $thoughtDate",
+              style: const TextStyle(
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
               ),
             ),
-            const SizedBox(height: 30),
+          const SizedBox(height: 6),
+          if (thoughtText != null)
+            Text(
+              thoughtText!,
+              style: const TextStyle(
+                fontStyle: FontStyle.italic,
+                fontWeight: FontWeight.w500,
+                color: Colors.black87,
+                fontSize: 16,
+              ),
+            ),
+        ],
+      ),
+    ),
+
+           const SizedBox(height: 30),
+
+isViharLoading
+    ? const Center(child: CircularProgressIndicator())
+    : Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          border: Border.all(color: Color(0xFF4CAF50), width: 1.5),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              "🔔 आज की विहार जानकारी",
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF2E7D32),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                const Icon(Icons.calendar_month, size: 18, color: Colors.grey),
+                const SizedBox(width: 8),
+                Text("तारीख: $viharDate", style: const TextStyle(color: Colors.black87)),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                const Icon(Icons.place, size: 18, color: Colors.grey),
+                const SizedBox(width: 8),
+                Text("आदि थाना: $viharThana", style: const TextStyle(color: Colors.black87)),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                const Icon(Icons.hotel, size: 18, color: Colors.grey),
+                const SizedBox(width: 8),
+                Text("रात्रि विश्राम हेतु: $viharLocation", style: const TextStyle(color: Colors.black87)),
+              ],
+            ),
+          ],
+        ),
+      ),
+
           ],
         ),
       ),

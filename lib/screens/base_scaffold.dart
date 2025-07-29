@@ -146,44 +146,44 @@ class BaseScaffold extends StatelessWidget {
       ),
       body: body,
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-bottomNavigationBar: selectedIndex >= 0
-    ? Padding(
-        padding: const EdgeInsets.all(12.0),
-        child: Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(30),
-            boxShadow: const [
-              BoxShadow(
-                color: Colors.black12,
-                blurRadius: 10,
-                offset: Offset(0, 4),
-              ),
-            ],
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(30),
-            child: BottomNavigationBar(
-              type: BottomNavigationBarType.fixed,
-              currentIndex: selectedIndex,
-              selectedItemColor: Colors.white,
-              unselectedItemColor: const Color(0xFF1E3A8A),
-              backgroundColor: Colors.transparent,
-              elevation: 0,
-              onTap: (index) => onItemTapped(context, index),
-              items: [
-                _buildNavItem(Icons.home, "Home", 0),
-                _buildNavItem(Icons.watch_later_outlined, "Events", 1),
-                _buildNavItem(Icons.menu_book, "Sahitya", 2),
-                _buildNavItem(Icons.book, "Shramnopasak", 3),
-                _buildNavItem(Icons.event, "Shivir", 4),
-                _buildNavItem(Icons.person, "Profile", 5),
-              ],
-            ),
-          ),
+bottomNavigationBar: Padding(
+  padding: const EdgeInsets.all(12.0),
+  child: Container(
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(30),
+      boxShadow: const [
+        BoxShadow(
+          color: Colors.black12,
+          blurRadius: 10,
+          offset: Offset(0, 4),
         ),
-      )
-    : null, // ✅ hide nav bar if index is -1
+      ],
+    ),
+    child: ClipRRect(
+      borderRadius: BorderRadius.circular(30),
+      child: BottomNavigationBar(
+  type: BottomNavigationBarType.fixed,
+  currentIndex: selectedIndex >= 0 ? selectedIndex : 0, // ✅ Fixes the crash
+  selectedItemColor: Colors.white,
+  unselectedItemColor: const Color(0xFF1E3A8A),
+  backgroundColor: Colors.transparent,
+  elevation: 0,
+  onTap: (index) => onItemTapped(context, index),
+  items: [
+    _buildNavItem(Icons.home, "Home", 0),
+    _buildNavItem(Icons.watch_later_outlined, "Events", 1),
+    _buildNavItem(Icons.menu_book, "Sahitya", 2),
+    _buildNavItem(Icons.book, "Shramnopasak", 3),
+    _buildNavItem(Icons.event, "Shivir", 4),
+    _buildNavItem(Icons.person, "Profile", 5),
+  ],
+),
+
+    ),
+  ),
+),
+
 
     );
   }

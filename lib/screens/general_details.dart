@@ -78,7 +78,6 @@ final districtController = TextEditingController();
 final pinCodeController = TextEditingController();
 final countryController = TextEditingController();
 final stateController = TextEditingController();
-final numberOfChildrenController = TextEditingController();
 
 
 List<Relation> relationList = [];
@@ -273,7 +272,6 @@ Future<void> updateMemberDetails() async {
   "whatsapp_number": whatsappNumberController.text,
   "alternate_number": alternateNumberController.text,
   "email_address": emailController.text,
-  "blood_group": "O +ve", // If static or you add a dropdown
   "pincode": pinCodeController.text,
   "adhar_name": adharNameController.text,
   "adharfatherName": adharFatherNameController.text,
@@ -395,12 +393,9 @@ selectedStateModel = stateList.firstWhere(
           selectedDOB = DateTime.tryParse(data['birth_day']);
         }
 
-        if (data['marriage_date'] != null) {
-          selectedMarriageDate = DateTime.tryParse(data['marriage_date']);
-        }
+       
 
         // 📝 Children Count
-        numberOfChildrenController.text = data['child_count']?.toString() ?? '';
 
       });
     } else {
@@ -674,12 +669,7 @@ buildCard(DropdownButtonFormField<StateModel>(
                 buildCard(buildTextField("ईमेल",
                     controller: emailController,
                     keyboardType: TextInputType.emailAddress)),
-                sectionHeader(Icons.favorite, 'विवाहिक विवरण'),
-                buildCard(buildDatePicker("विवाहिक तिथि",
-                    selectedMarriageDate, (val) => selectedMarriageDate = val)),
-buildCard(buildTextField("बच्चों की संख्या", 
-  controller: numberOfChildrenController, 
-  keyboardType: TextInputType.number)),
+              
 
                 sectionHeader(Icons.credit_card, 'आधार विवरण'),
                 buildCard(buildRow(

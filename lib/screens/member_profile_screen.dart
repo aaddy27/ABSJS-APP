@@ -251,7 +251,7 @@ pw.Positioned(
   @override
   Widget build(BuildContext context) {
     return BaseScaffold(
-      selectedIndex: 0,
+      selectedIndex: 5,
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
           : memberData == null
