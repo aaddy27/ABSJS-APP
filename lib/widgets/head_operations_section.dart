@@ -41,8 +41,8 @@ class HeadOperationsSection extends StatelessWidget {
                   child: DropdownButtonFormField(
                     decoration: const InputDecoration(labelText: "मुखिया चयन करें"),
                     items: [
-                      DropdownMenuItem(child: Text("Rajendra Golchha"), value: "100072"),
-                      DropdownMenuItem(child: Text("Pankaj Golchha"), value: "100108"),
+                      DropdownMenuItem(value: "100072", child: Text("Rajendra Golchha")),
+                      DropdownMenuItem(value: "100108", child: Text("Pankaj Golchha")),
                     ],
                     onChanged: (value) {
                       // Handle change head
@@ -54,8 +54,8 @@ class HeadOperationsSection extends StatelessWidget {
                   onPressed: () {
                     // Call API to change head
                   },
-                  child: const Text("परिवर्तन करें"),
                   style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+                  child: const Text("परिवर्तन करें"),
                 ),
               ],
             ),
