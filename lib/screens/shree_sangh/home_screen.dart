@@ -1,7 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../base_scaffold.dart';
+
+// 🟠 Relative imports from the same `shree_sangh` folder
 import 'sangh/sangh_home_screen.dart';
+import 'sangh_pravartiya/sangh_pravartiya_home_screen.dart';
+import 'photo_gallery/photo_gallery_home_screen.dart';
+import 'aavedan_patra/aavedan_patra_home_screen.dart';
+
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -52,7 +58,7 @@ class HomeScreen extends StatelessWidget {
                     _buildMenuCard(context, 'संघ प्रवृत्तियाँ', Icons.campaign, Colors.green.shade700),
                     _buildMenuCard(context, 'फोटो गैलरी', Icons.photo_library, Colors.deepPurple),
                     _buildMenuCard(context, 'आवेदन पत्र', Icons.description, Colors.indigo),
-                    _buildMenuCard(context, ' OPTION 5', Icons.event, Colors.teal),
+                    _buildMenuCard(context, 'OPTION 5', Icons.event, Colors.teal),
                   ],
                 ),
 
@@ -80,6 +86,21 @@ class HomeScreen extends StatelessWidget {
           Navigator.push(
             context,
             MaterialPageRoute(builder: (context) => const SanghHomeScreen()),
+          );
+        } else if (title.trim() == 'संघ प्रवृत्तियाँ') {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const SanghPravartiyaHomeScreen()),
+          );
+        } else if (title.trim() == 'फोटो गैलरी') {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const PhotoGalleryHomeScreen()),
+          );
+        } else if (title.trim() == 'आवेदन पत्र') {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const AavedanPatraHomeScreen()),
           );
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
