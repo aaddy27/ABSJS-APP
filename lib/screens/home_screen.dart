@@ -11,6 +11,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:laravel_auth_flutter/screens/shree_sangh/home_screen.dart' as shree;
 import 'shramnopasak_screen.dart';
+import 'shivir_screen.dart';
 
 
 class HomeScreen extends StatefulWidget {
@@ -39,10 +40,11 @@ class _HomeScreenState extends State<HomeScreen> {
   const HomeDashboard(),
   UpcomingEventsScreen(),
   SahityaScreen(),
-  const ShramnopasakScreen(), // <- API wala screen yahan lag gaya
-  const Center(child: Text("Shivir Coming Soon")),
+  const ShramnopasakScreen(),
+  const ShivirScreen(), // ✅ Now dynamic via API
   const Center(child: CircularProgressIndicator()), // profile loading
 ];
+
 
 
 

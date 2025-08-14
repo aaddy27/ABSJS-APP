@@ -538,12 +538,12 @@ else if (index == 5) {
 
   // Placeholder content for other tabs
   List<String> tabTitles = [
-    'JSP',
-    'JSP Exam',
-    'JSP Big Exam',
-    'JSP Hindi Books',
-    'JSP Gujarati Books',
-    'JSP Old Papers',
+    'जैन संस्कार पाठ्यक्रम',
+    'श्री जैन संस्कार पाठ्यक्रम परीक्षा',
+    'श्री साधुमार्गी जैन धार्मिक परीक्षा बोर्ड (बड़ी परीक्षाएँ)',
+    'जैन संस्कार पाठ्यक्रम हिन्दी पुस्तकें',
+    'जैन संस्कार पाठ्यक्रम गुजराती पुस्तकें',
+    'पुराने पेपर (Class wise)',
   ];
 
   return Center(
@@ -577,12 +577,12 @@ else if (index == 5) {
               indicatorColor: Colors.blue.shade900,
               labelStyle: GoogleFonts.hindSiliguri(fontWeight: FontWeight.w600),
               tabs: const [
-                Tab(text: 'JSP'),
-                Tab(text: 'JSP Exam'),
-                Tab(text: 'JSP Big Exam'),
-                Tab(text: 'JSP Hindi Books'),
-                Tab(text: 'JSP Gujarati Books'),
-                Tab(text: 'JSP Old Papers'),
+                Tab(text: 'श्री जैन संस्कार पाठ्यक्रम '),
+                Tab(text: 'श्री जैन संस्कार पाठ्यक्रम परीक्षा'),
+                Tab(text: 'श्री साधुमार्गी जैन धार्मिक परीक्षा बोर्ड (बड़ी परीक्षाएँ)'),
+                Tab(text: 'जैन संस्कार पाठ्यक्रम हिन्दी पुस्तकें'),
+                Tab(text: 'जैन संस्कार पाठ्यक्रम गुजराती पुस्तकें'),
+                Tab(text: 'पुराने पेपर (Class wise)'),
               ],
             ),
           ),

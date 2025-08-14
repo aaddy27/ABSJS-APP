@@ -1,7 +1,8 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:printing/printing.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../base_scaffold.dart';
 
 class PadhadhikariParikshanKaryashalaScreen extends StatefulWidget {
@@ -14,8 +15,8 @@ class PadhadhikariParikshanKaryashalaScreen extends StatefulWidget {
 
 class _PadhadhikariParikshanKaryashalaScreenState
     extends State<PadhadhikariParikshanKaryashalaScreen> {
-  List<dynamic> data = [];
   bool isLoading = true;
+  List<dynamic> data = [];
 
   @override
   void initState() {
@@ -38,32 +39,17 @@ class _PadhadhikariParikshanKaryashalaScreenState
         throw Exception('Failed to load data');
       }
     } catch (e) {
-      print('Error fetching data: $e');
+      debugPrint('Error fetching data: $e');
       setState(() {
         isLoading = false;
       });
     }
   }
 
-  Future<void> downloadAndPrintPDF(String pdfPath) async {
-    final url = 'https://website.sadhumargi.in/storage/$pdfPath';
-    try {
-      final response = await http.get(Uri.parse(url));
-      if (response.statusCode == 200) {
-        await Printing.layoutPdf(
-          onLayout: (_) => response.bodyBytes,
-          name: pdfPath.split('/').last,
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('❌ PDF डाउनलोड नहीं हो सका')),
-        );
-      }
-    } catch (e) {
-      print("PDF error: $e");
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('❌ PDF डाउनलोड में त्रुटि हुई')),
-      );
+  Future<void> _openUrl(String url) async {
+    final Uri uri = Uri.parse(url);
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+      throw 'Could not launch $url';
     }
   }
 
@@ -81,17 +67,30 @@ class _PadhadhikariParikshanKaryashalaScreenState
                     itemCount: data.length,
                     itemBuilder: (context, index) {
                       final item = data[index];
+                      final title = item['name'] ?? 'नाम नहीं मिला';
+                      final rawFile = item['pdf']?.toString() ?? '';
+                      final cleanedUrl = rawFile.contains('http')
+                          ? rawFile.replaceAll(r'\/', '/')
+                          : 'https://website.sadhumargi.in/storage/$rawFile';
+                      final isOnline = cleanedUrl.contains('docs.google.com');
+
                       return Card(
                         margin: const EdgeInsets.symmetric(vertical: 8),
-                        elevation: 3,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                        elevation: 2,
                         child: ListTile(
-                          title: Text(item['name'] ?? ''),
-                          trailing: IconButton(
-                            icon: const Icon(Icons.download, color: Colors.green),
-                            onPressed: () {
-                              downloadAndPrintPDF(item['pdf']);
-                            },
+                          leading: Icon(
+                            isOnline ? Icons.link : Icons.picture_as_pdf,
+                            color: isOnline ? Colors.green : Colors.red,
                           ),
+                          title: Text(
+                            title,
+                            style: GoogleFonts.hindSiliguri(fontSize: 16),
+                          ),
+                          trailing: const Icon(Icons.open_in_new,
+                              color: Colors.deepPurple),
+                          onTap: () => _openUrl(cleanedUrl),
                         ),
                       );
                     },
