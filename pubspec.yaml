@@ -60,6 +60,8 @@ flutter:
     - assets/images/nanesh-chiktsalay.jpg
     - assets/images/daanpeti-logo.jpg
     - assets/images/idam_namam.jpg
+    - assets/images/donation.webp
+    - assets/images/donor_portal_qr.png
 
 # ✅ Splash Screen Configuration
 flutter_native_splash:

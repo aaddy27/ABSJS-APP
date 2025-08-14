@@ -12,6 +12,11 @@ import 'package:http/http.dart' as http;
 import 'package:laravel_auth_flutter/screens/shree_sangh/home_screen.dart' as shree;
 import 'shramnopasak_screen.dart';
 import 'shivir_screen.dart';
+import 'arth_sahyog.dart';
+import 'sampark_screen.dart';
+import 'pakhi_ka_paana_screen.dart';
+import 'chaturmas_suchi_screen.dart';
+
 
 
 class HomeScreen extends StatefulWidget {
@@ -181,20 +186,40 @@ String? viharDate;
 String? viharThana;
 String? viharLocation;
 bool isViharLoading = true;
+bool isSliderLoading = true;
 
- final List<String> imageList = const [
-    'assets/images/slider1.jpg',
-    'assets/images/slider2.jpg',
-    'assets/images/slider3.jpg',
-  ];
+ List<String> imageList = [];
 
 
   @override
 void initState() {
   super.initState();
   loadMemberId();
+  fetchSliderImages();
   fetchLatestThought();
+  
   fetchLatestVihar();
+}
+
+
+Future<void> fetchSliderImages() async {
+  try {
+    final response = await http.get(Uri.parse('https://website.sadhumargi.in/api/home_slider'));
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+
+      setState(() {
+        imageList = List<String>.from(
+          data.map((item) => "https://website.sadhumargi.in/${item['photo']}"),
+        );
+        isSliderLoading = false;
+      });
+    } else {
+      setState(() => isSliderLoading = false);
+    }
+  } catch (e) {
+    setState(() => isSliderLoading = false);
+  }
 }
 
 Future<void> fetchLatestThought() async {
@@ -270,6 +295,11 @@ Future<void> fetchLatestVihar() async {
       {"title": "महिला समिति", "image": "assets/images/mslogo.png", "screen": null},
       {"title": "युवा संघ", "image": "assets/images/yuva.png", "screen": null},
       {"title": "विहार", "image": "assets/images/vihar_seva.jpg", "screen": const ViharScreen()},
+       {
+    "title": "अर्थ सहयोग",
+    "image": "assets/images/donation.webp",
+    "screen": const ArthSahyogScreen(), 
+  },
     ];
 
     double width = MediaQuery.of(context).size.width;
@@ -280,7 +310,7 @@ Future<void> fetchLatestVihar() async {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            const SizedBox(height: 10),
+            const SizedBox(height: 30),
             SizedBox(
               height: 200,
               child: PageView.builder(
@@ -290,11 +320,20 @@ Future<void> fetchLatestVihar() async {
                     padding: const EdgeInsets.symmetric(horizontal: 10),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(12),
-                      child: Image.asset(
-                        imageList[index],
-                        fit: BoxFit.cover,
-                        width: double.infinity,
-                      ),
+                      child: Image.network(
+  imageList[index],
+  fit: BoxFit.cover,
+  width: double.infinity,
+  loadingBuilder: (context, child, loadingProgress) {
+    if (loadingProgress == null) return child;
+    return const Center(child: CircularProgressIndicator());
+  },
+  errorBuilder: (context, error, stackTrace) {
+    return const Center(
+      child: Icon(Icons.broken_image, size: 40, color: Colors.grey),
+    );
+  },
+),
                     ),
                   );
                 },
@@ -323,7 +362,36 @@ Future<void> fetchLatestVihar() async {
                 );
               },
             ),
+            
             const SizedBox(height: 30),
+            // 🔹 New Landscape Cards Row
+// 🔹 Vertical Icon Cards
+_buildIconCard(
+  context,
+  "संपर्क",
+  Icons.phone,
+  Colors.green,
+  const SamparkScreen(),
+),
+_buildIconCard(
+  context,
+  "पाखी का पाना",
+  Icons.calendar_month,
+  Colors.orange,
+  const PakhiKaPaanaScreen(),
+),
+
+_buildIconCard(
+  context,
+  "चातुर्मास सूची",
+  Icons.menu_book,
+  Colors.blue,
+  const ChaturmasSuchiScreen(),
+),
+
+const SizedBox(height: 30),
+
+
            isThoughtLoading
   ? const Center(child: CircularProgressIndicator())
   : Container(
@@ -377,6 +445,7 @@ Future<void> fetchLatestVihar() async {
     ),
 
            const SizedBox(height: 30),
+        
 
 isViharLoading
     ? const Center(child: CircularProgressIndicator())
@@ -432,6 +501,9 @@ isViharLoading
       ),
     );
   }
+
+
+
 
   Widget _buildSquareCard(
     BuildContext context,
@@ -491,4 +563,54 @@ isViharLoading
       ),
     );
   }
+}
+
+Widget _buildIconCard(
+  BuildContext context,
+  String title,
+  IconData icon,
+  Color iconColor,
+  Widget nextScreen,
+) {
+  return InkWell(
+    onTap: () {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => nextScreen),
+      );
+    },
+    child: Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFF1E3A8A), width: 1.5),
+        boxShadow: const [
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 6,
+            offset: Offset(2, 3),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 32, color: iconColor),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              title,
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF1E3A8A),
+              ),
+            ),
+          ),
+          const Icon(Icons.arrow_forward_ios, size: 18, color: Colors.grey),
+        ],
+      ),
+    ),
+  );
 }
