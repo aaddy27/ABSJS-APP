@@ -1,151 +1,95 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'dart:convert';
-import 'package:http/http.dart' as http;
-import 'package:url_launcher/url_launcher.dart';
 import '../../base_scaffold.dart';
 
-class AavedanPatraHomeScreen extends StatefulWidget {
-  const AavedanPatraHomeScreen({super.key});
+// Import all other screens
+import 'sangh_sadasyata.dart';
+import 'samta_chatravritti.dart';
+import 'anya_vishisht_sadasyata.dart';
+import 'anya_sadasyata.dart';
+import 'pathshala.dart';
+import 'shivir.dart';
+import 'swadhyayi.dart';
+import 'shree_samata_trust.dart';
+import 'uchch_shiksha_yojana.dart';
+import 'nanesh_puraskar.dart';
+import 'seth_champalal_award.dart';
+import 'pradeep_kumar_sahitya.dart';
+import 'pariksha.dart';
+import 'anya_aavedan.dart';
+import 'prativad.dart';
+import 'ganesh_jain_chhatravas.dart'; // नया जोड़ा गया
 
-  @override
-  State<AavedanPatraHomeScreen> createState() => _AavedanPatraHomeScreenState();
-}
+class AavedanPatraHomeScreen extends StatelessWidget {
+  AavedanPatraHomeScreen({super.key});
 
-class _AavedanPatraHomeScreenState extends State<AavedanPatraHomeScreen>
-    with TickerProviderStateMixin {
-  List offlineForms = [];
-  List onlineForms = [];
-  bool isLoading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    fetchForms();
-  }
-
-  Future<void> fetchForms() async {
-    try {
-      final response = await http
-          .get(Uri.parse('https://website.sadhumargi.in/api/aavedan-patra'));
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-
-        setState(() {
-          offlineForms = data
-              .where((item) =>
-                  item['file_type'] == 'pdf' &&
-                  !item['file'].toString().contains('docs.google.com'))
-              .toList();
-
-          onlineForms = data
-              .where((item) =>
-                  item['file'].toString().contains('docs.google.com'))
-              .toList();
-
-          isLoading = false;
-        });
-      } else {
-        throw Exception('Failed to load forms');
-      }
-    } catch (e) {
-      debugPrint('Error: $e');
-      setState(() => isLoading = false);
-    }
-  }
+  final List<Map<String, dynamic>> categories = const [
+    {'title': 'संघ सदस्यता आवेदन-पत्र', 'widget': SanghSadasyataScreen()},
+    {'title': 'समता छात्रवृत्ति आवेदन-पत्र', 'widget': SamtaChatravrittiScreen()},
+    {'title': 'अन्य विशिष्ट सदस्यता आवेदन-पत्र', 'widget': AnyaVishishtSadasyataScreen()},
+    {'title': 'अन्य सदस्यता आवेदन-पत्र', 'widget': AnyaSadasyataScreen()},
+    {'title': 'पाठशाला आवेदन-पत्र', 'widget': PathshalaScreen()},
+    {'title': 'शिविर आवेदन-पत्र', 'widget': ShivirScreen()},
+    {'title': 'स्वाध्यायी पंजीकरण आवेदन-पत्र', 'widget': SwadhyayiScreen()},
+    {'title': 'श्री समता जनकल्याण प्रन्यास', 'widget': ShreeSamataTrustScreen()},
+    {'title': 'पूज्य आचार्य श्री श्रीलाल उच्च शिक्षा योजना आवेदन-पत्र', 'widget': UchchShikshaYojanaScreen()},
+    {'title': 'आचार्य श्री नानेश समता पुरस्कार हेतु प्रविष्टियाँ आमंत्रित', 'widget': NaneshPuraskarScreen()},
+    {'title': 'सेठ श्री चम्पालाल सांड स्मृति उच्च प्रशासनिक पुरस्कार', 'widget': SethChampalalAwardScreen()},
+    {'title': 'स्व. श्री प्रदीप कुमार रामपुरिया स्मृति साहित्य पुरस्कार प्रतियोगिता आवेदन प्रपत्र', 'widget': PradeepKumarSahityaScreen()},
+    {'title': 'परीक्षा आवेदन-पत्र', 'widget': ParikshaScreen()},
+    {'title': 'अन्य आवेदन-पत्र', 'widget': AnyaAavedanScreen()},
+    {'title': 'प्रतिवेद', 'widget': PrativadScreen()},
+    {'title': 'गणेश जैन छात्रावास', 'widget': GaneshJainChhatravasScreen()}, // नया जोड़ा गया
+  ];
 
   @override
   Widget build(BuildContext context) {
     return BaseScaffold(
       selectedIndex: -1,
-      body: DefaultTabController(
-        length: 2,
-        child: Column(
-          children: [
-            Container(
-              color: Colors.deepPurple.shade100,
-              child: const TabBar(
-                labelColor: Colors.deepPurple,
-                indicatorColor: Colors.deepPurple,
-                tabs: [
-                  Tab(text: '📄 Offline Forms'),
-                  Tab(text: '🌐 Online Forms'),
-                ],
-              ),
-            ),
-            Expanded(
-              child: isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : TabBarView(
-                      children: [
-                        _buildFormList(offlineForms, isOnline: false),
-                        _buildFormList(onlineForms, isOnline: true),
-                      ],
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: GridView.builder(
+          itemCount: categories.length,
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
+            childAspectRatio: 1.7,
+          ),
+          itemBuilder: (context, index) {
+            return InkWell(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => categories[index]['widget']),
+                );
+              },
+              child: Card(
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+                elevation: 2,
+                color: Colors.deepPurple.shade50,
+                child: Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(8),
+                    child: Text(
+                      categories[index]['title'],
+                      style: GoogleFonts.hindSiliguri(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.deepPurple.shade800,
+                      ),
+                      textAlign: TextAlign.center,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
                     ),
-            ),
-          ],
+                  ),
+                ),
+              ),
+            );
+          },
         ),
       ),
     );
   }
-
-  Widget _buildFormList(List forms, {required bool isOnline}) {
-    if (forms.isEmpty) {
-      return const Center(child: Text('कोई डेटा उपलब्ध नहीं है'));
-    }
-
-    return ListView.builder(
-      itemCount: forms.length,
-      itemBuilder: (context, index) {
-        final form = forms[index];
-        final title = form['name'];
-
-        // Prepare full URL
-        final rawFile = form['file'].toString();
-        final cleanedUrl = rawFile.contains('http')
-            ? rawFile.replaceAll(r'\/', '/')
-            : 'https://website.sadhumargi.in/storage/aavedan_patra/$rawFile';
-
-        return Card(
-          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          elevation: 2,
-          child: ListTile(
-            leading: Icon(
-              isOnline ? Icons.link : Icons.picture_as_pdf,
-              color: isOnline ? Colors.green : Colors.red,
-            ),
-            title: Text(title, style: GoogleFonts.hindSiliguri(fontSize: 16)),
-            trailing: const Icon(Icons.open_in_new, color: Colors.deepPurple),
-            onTap: () => _launchURL(cleanedUrl, context),
-          ),
-        );
-      },
-    );
-  }
-
-Future<void> _launchURL(String url, BuildContext context) async {
-  final Uri uri = Uri.parse(url);
-
-  if (await canLaunchUrl(uri)) {
-    final launched = await launchUrl(
-      uri,
-      mode: LaunchMode.inAppWebView, // 👈 try this instead of external
-    );
-
-    if (!launched) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('URL नहीं खोल सका')),
-      );
-    }
-  } else {
-    debugPrint('❌ Cannot launch: $url');
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('URL नहीं खोल सका')),
-    );
-  }
-}
-
 }

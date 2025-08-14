@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:google_fonts/google_fonts.dart';
 
 import '../../base_scaffold.dart';
 
@@ -56,11 +57,11 @@ class _CurrentPstScreenState extends State<CurrentPstScreen> {
                   Center(
                     child: Text(
                       'वर्तमान कार्यकारिणी',
-                      style: const TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        fontFamily: 'NotoSansDevanagari',
-                      ),
+                      style: GoogleFonts.amita(
+      fontSize: 32,
+      fontWeight: FontWeight.bold,
+      color: Colors.black87,
+    ),
                     ),
                   ),
                   const SizedBox(height: 20),

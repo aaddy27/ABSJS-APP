@@ -67,8 +67,8 @@ class _ExPresidentScreenState extends State<ExPresidentScreen> {
                        Center(
   child: Text(
     'पूर्व अध्यक्षगण',
-    style: GoogleFonts.hind(
-      fontSize: 24,
+    style: GoogleFonts.amita(
+      fontSize: 38,
       fontWeight: FontWeight.bold,
       color: Colors.black87,
     ),

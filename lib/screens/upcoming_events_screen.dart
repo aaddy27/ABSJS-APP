@@ -111,45 +111,42 @@ class _UpcomingEventsScreenState extends State<UpcomingEventsScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          GestureDetector(
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => FullscreenImageScreen(
-                                      imageUrl: imageUrl),
-                                ),
-                              );
-                            },
-                            child: ClipRRect(
-                              borderRadius: const BorderRadius.vertical(
-                                  top: Radius.circular(16)),
-                              child: AspectRatio(
-                                aspectRatio: 3 / 4, // Poster-style (adjust if needed)
-                                child: Image.network(
-                                  imageUrl,
-                                  width: double.infinity,
-                                  fit: BoxFit.cover,
-                                  loadingBuilder:
-                                      (context, child, loadingProgress) {
-                                    if (loadingProgress == null) return child;
-                                    return Container(
-                                      color: Colors.grey[200],
-                                      child: const Center(
-                                          child: CircularProgressIndicator()),
-                                    );
-                                  },
-                                  errorBuilder:
-                                      (context, error, stackTrace) => Container(
-                                    color: Colors.grey[300],
-                                    child: const Center(
-                                        child: Icon(Icons.broken_image,
-                                            size: 40)),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
+                         GestureDetector(
+  onTap: () {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => FullscreenImageScreen(imageUrl: imageUrl),
+      ),
+    );
+  },
+  child: ClipRRect(
+    borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+    child: Container(
+      width: double.infinity,
+      color: Colors.grey[200],
+      child: Image.network(
+        imageUrl,
+        fit: BoxFit.fitWidth, // ensures full width, height adjusts automatically
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return Container(
+            height: 200, // temporary height while loading
+            color: Colors.grey[200],
+            child: const Center(child: CircularProgressIndicator()),
+          );
+        },
+        errorBuilder: (context, error, stackTrace) => Container(
+          height: 200,
+          color: Colors.grey[300],
+          child: const Center(
+              child: Icon(Icons.broken_image, size: 40)),
+        ),
+      ),
+    ),
+  ),
+),
+
                           Padding(
                             padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                             child: Column(
