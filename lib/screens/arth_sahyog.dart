@@ -6,9 +6,20 @@ import 'base_scaffold.dart';
 class ArthSahyogScreen extends StatelessWidget {
   const ArthSahyogScreen({super.key});
 
-  // URL Launch Function
+  // Donor Portal Launch
   Future<void> _launchDonationPortal() async {
     const url = "https://donorportal.sadhumargi.com/login";
+    if (await canLaunchUrl(Uri.parse(url))) {
+      await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+    } else {
+      throw 'Could not launch $url';
+    }
+  }
+
+  // Razorpay Payment Button Launch
+  Future<void> _launchRazorpayButton() async {
+    const url =
+        "https://razorpay.com/payment-button/pl_JoX6ZBeBRmwAfA/view/?utm_source=payment_button&utm_medium=button&utm_campaign=payment_button";
     if (await canLaunchUrl(Uri.parse(url))) {
       await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
     } else {
@@ -19,13 +30,13 @@ class ArthSahyogScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BaseScaffold(
-      selectedIndex: 0,
+      selectedIndex: -1,
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            // Heading with Amita font
+            // Heading
             Text(
               "अर्थ सहयोग",
               style: GoogleFonts.amita(
@@ -37,7 +48,7 @@ class ArthSahyogScreen extends StatelessWidget {
             ),
             const SizedBox(height: 20),
 
-            // Banner / Image
+            // Banner Image
             ClipRRect(
               borderRadius: BorderRadius.circular(12),
               child: Image.asset(
@@ -47,12 +58,9 @@ class ArthSahyogScreen extends StatelessWidget {
             ),
             const SizedBox(height: 20),
 
-            // Content Text
+            // Description
             const Text(
-              "संघ में आपके सहयोग व सदस्यता की सम्पूर्ण जानकारी प्राप्त करने व "
-              "ऑनलाइन भुगतान हेतु नीचे दिए लिंक पर क्लिक करें।\n\n"
-              "आपका छोटा सा योगदान भी समाज में बड़ा बदलाव ला सकता है। "
-              "आपका हर सहयोग हमें शिक्षा, सेवा, और संस्कार के कार्यों को आगे बढ़ाने में मदद करता है।",
+              "यदि आप श्री संघ एवं संघ की सहयोगी संस्थाओं द्वारा संचालित विभिन्न प्रवृत्तियों हेतु आर्थिक सहयोग करना चाहते हैं तो आप ऑनलाइन बैंक द्वारा भी हस्तांतरण कर सकते हैं अथवा संघ कार्यालय में संपर्क कर सकते हैं। संघ को दिया गया अर्थ सहयोग भारतीय आयकर अधिनियम की धारा 80 G के अंतर्गत कर मुक्त है। कृपया राशि भेजने के पश्चात केंद्रीय कार्यालय को अवश्य सूचित करें।",
               style: TextStyle(fontSize: 16, height: 1.5),
               textAlign: TextAlign.center,
             ),
@@ -62,7 +70,7 @@ class ArthSahyogScreen extends StatelessWidget {
             ClipRRect(
               borderRadius: BorderRadius.circular(8),
               child: Image.asset(
-                'assets/images/donor_portal_qr.png', // आपका QR इमेज पाथ
+                'assets/images/donor_portal_qr.png',
                 width: 180,
                 height: 180,
                 fit: BoxFit.cover,
@@ -70,7 +78,7 @@ class ArthSahyogScreen extends StatelessWidget {
             ),
             const SizedBox(height: 15),
 
-            // Donation Button
+            // 🔹 Donor Portal Button
             ElevatedButton.icon(
               onPressed: _launchDonationPortal,
               icon: const Icon(Icons.volunteer_activism, color: Colors.white),
@@ -87,6 +95,63 @@ class ArthSahyogScreen extends StatelessWidget {
                 ),
               ),
             ),
+
+            const SizedBox(height: 15),
+
+            // 🔹 Razorpay Direct Donate Button
+            ElevatedButton.icon(
+              onPressed: _launchRazorpayButton,
+              icon: const Icon(Icons.payment, color: Colors.white),
+              label: const Text(
+                "Donate Now Online (₹2000-/ तक )",
+                style: TextStyle(color: Colors.white, fontSize: 16),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 25),
+
+            // 🔹 Bank Details Card
+            Card(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              elevation: 4,
+              color: Colors.orange.shade50,
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                   
+                    const SizedBox(height: 15),
+                    Text(
+                      "Bank Details:",
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.deepOrange.shade800,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text("🏦 Bank Name: State Bank Of India (S.B.I)"),
+                    const Text("💳 Account Number: 31264126861"),
+                    const Text(
+                        "👤 Account Name: Shri Akhil Bharatvarshiya Sadhumargi Jain Sangh"),
+                    const Text("🔑 IFSC CODE: SBIN0003401"),
+                    const Text("📍 Branch Name: Gangasahar Road, Bikaner"),
+                  ],
+                ),
+              ),
+            ),
+
             const SizedBox(height: 30),
           ],
         ),
