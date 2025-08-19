@@ -16,7 +16,7 @@ import 'arth_sahyog.dart';
 import 'sampark_screen.dart';
 import 'pakhi_ka_paana_screen.dart';
 import 'chaturmas_suchi_screen.dart';
-
+import 'mahila_samiti/layout_screen.dart';
 
 
 class HomeScreen extends StatefulWidget {
@@ -292,7 +292,7 @@ Future<void> fetchLatestVihar() async {
   "screen": const shree.HomeScreen(), // ✅ corrected
 },
 
-      {"title": "महिला समिति", "image": "assets/images/mslogo.png", "screen": null},
+      {"title": "महिला समिति", "image": "assets/images/mslogo.png", "screen": const LayoutScreen()},
       {"title": "युवा संघ", "image": "assets/images/yuva.png", "screen": null},
       {"title": "विहार", "image": "assets/images/vihar_seva.jpg", "screen": const ViharScreen()},
        {
