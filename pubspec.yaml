@@ -62,6 +62,16 @@ flutter:
     - assets/images/idam_namam.jpg
     - assets/images/donation.webp
     - assets/images/donor_portal_qr.png
+    - assets/images/kesariya-karyshala.JPG
+    - assets/images/parivar.JPG
+    - assets/images/yuwati-shakti.JPG
+    - assets/images/sangthan-150x150.JPG
+    - assets/images/woman_forms.JPG
+    - assets/images/sarvdharmi.JPG
+    - assets/images/scholarshtip.JPG
+    - assets/images/golden_steps.JPEG
+    - assets/images/yuva_parichay.jpeg
+    - assets/images/yuva-r.png
 
 # ✅ Splash Screen Configuration
 flutter_native_splash:

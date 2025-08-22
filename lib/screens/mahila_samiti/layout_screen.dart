@@ -1,10 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'home_screen.dart';
-import 'pravartiya_screen.dart'; // ✅ Import Pravartiya Screen
+import 'pravartiya_screen.dart';
+import 'mahila_karyakarini_screen.dart';
+import 'downloads/download_home_screen.dart';
+import 'events/mahila_events_screen.dart';
+import 'mahila_photo_gallery_screen.dart';
 
 class LayoutScreen extends StatefulWidget {
-  const LayoutScreen({super.key});
+  final String title;
+  final Widget? body; // ✅ optional
+
+  const LayoutScreen({
+    super.key,
+    required this.title,
+    this.body,
+  });
 
   @override
   State<LayoutScreen> createState() => _LayoutScreenState();
@@ -13,25 +24,31 @@ class LayoutScreen extends StatefulWidget {
 class _LayoutScreenState extends State<LayoutScreen> {
   int _selectedIndex = 0;
 
-  final List<Widget> _screens = const [
-    MahilaHomeScreen(),
-    PravartiyaScreen(), // ✅ Ab yaha Pravritti Screen aa gayi
-    Center(child: Text("🖼 Gallery", style: TextStyle(fontSize: 20))),
-    Center(child: Text("👥 Members", style: TextStyle(fontSize: 20))),
-    Center(child: Text("🔔 Notifications", style: TextStyle(fontSize: 20))),
-    Center(child: Text("⚙ Settings", style: TextStyle(fontSize: 20))),
-  ];
+  late final List<Widget> _screens;
+
+  @override
+  void initState() {
+    super.initState();
+    _screens = const [
+      MahilaHomeScreen(),
+      PravartiyaScreen(),
+      MahilaKaryakariniScreen(),
+       DownloadHomeScreen(),
+      MahilaEventsScreen(),
+      MahilaPhotoGalleryScreen(),
+    ];
+  }
 
   void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
+    setState(() => _selectedIndex = index);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       extendBody: true,
+
+      // ✅ Common AppBar (हर जगह रहेगा)
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(60),
         child: AppBar(
@@ -39,27 +56,20 @@ class _LayoutScreenState extends State<LayoutScreen> {
           flexibleSpace: Container(
             decoration: const BoxDecoration(
               gradient: LinearGradient(
-                colors: [
-                  Color(0xFFFFD700),
-                  Color(0xFFFFC107),
-                ],
+                colors: [Color(0xFFFFD700), Color(0xFFFFC107)],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
             ),
           ),
           title: Row(
-            mainAxisAlignment: MainAxisAlignment.start,
             children: [
-              Image.asset(
-                "assets/images/mslogo.png",
-                height: 75,
-              ),
+              Image.asset("assets/images/mslogo.png", height: 55),
               const SizedBox(width: 12),
               Text(
-                "महिला समिति",
+                widget.title,
                 style: GoogleFonts.amita(
-                  fontSize: 24,
+                  fontSize: 22,
                   fontWeight: FontWeight.bold,
                   color: Colors.black,
                 ),
@@ -69,58 +79,64 @@ class _LayoutScreenState extends State<LayoutScreen> {
           centerTitle: false,
         ),
       ),
-      body: _screens[_selectedIndex],
-      bottomNavigationBar: Container(
-        margin: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(30),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black26,
-              blurRadius: 8,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(30),
-          child: BottomNavigationBar(
-            type: BottomNavigationBarType.fixed,
-            backgroundColor: Colors.white,
-            selectedItemColor: Colors.amber[800],
-            unselectedItemColor: Colors.grey,
-            currentIndex: _selectedIndex,
-            onTap: _onItemTapped,
-            items: const [
-              BottomNavigationBarItem(
-                icon: Icon(Icons.home),
-                label: 'होम',
+
+      // ✅ अगर custom body मिला तो वही दिखाओ, वरना nav वाला screen
+      body: widget.body ?? _screens[_selectedIndex],
+
+      // ✅ BottomNavigationBar सिर्फ main tabs में दिखेगा
+      bottomNavigationBar: widget.body == null
+          ? Container(
+              margin: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(30),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black26,
+                    blurRadius: 8,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.event),
-                label: 'प्रवृत्ति',
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(30),
+                child: BottomNavigationBar(
+                  type: BottomNavigationBarType.fixed,
+                  backgroundColor: Colors.white,
+                  selectedItemColor: Colors.amber[800],
+                  unselectedItemColor: Colors.grey,
+                  currentIndex: _selectedIndex,
+                  onTap: _onItemTapped,
+               items: const [
+    BottomNavigationBarItem(
+      icon: Icon(Icons.home),
+      label: 'होम',
+    ),
+    BottomNavigationBarItem(
+      icon: Icon(Icons.event),
+      label: 'प्रवृत्ति',
+    ),
+    BottomNavigationBarItem(
+      icon: Icon(Icons.group),
+      label: 'कार्यकारिणी',
+    ),
+    BottomNavigationBarItem(
+      icon: Icon(Icons.download),
+      label: 'DOWNLOAD',
+    ),
+    BottomNavigationBarItem(
+      icon: Icon(Icons.notifications),
+      label: 'गतिविधिया',
+    ),
+    BottomNavigationBarItem(
+      icon: Icon(Icons.photo_library),
+      label: 'गलेरी',
+    ),
+  ],
+                ),
               ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.photo_library),
-                label: 'गैलरी',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.people),
-                label: 'सदस्य',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.notifications),
-                label: 'सूचना',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.settings),
-                label: 'सेटिंग्स',
-              ),
-            ],
-          ),
-        ),
-      ),
+            )
+          : null,
     );
   }
 }
