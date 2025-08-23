@@ -123,7 +123,7 @@ class _NewsScreenState extends State<NewsScreen> {
           padding: const EdgeInsets.symmetric(vertical: 8),
           child: Center(
             child: Text(
-              "समाचार ",
+              "समाचार",
               style: GoogleFonts.amita(
                 fontSize: 38,
                 fontWeight: FontWeight.bold,
