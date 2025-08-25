@@ -177,7 +177,7 @@ class _FamilyScreenState extends State<FamilyScreen> {
     }
 
     return BaseScaffold(
-      selectedIndex: 3,
+      selectedIndex: -1,
       body: DefaultTabController(
         length: tabs.length,
         child: Column(

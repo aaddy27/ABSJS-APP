@@ -8,6 +8,7 @@ import 'shramnopasak_screen.dart';
 import 'shivir_screen.dart';
 import 'login_screen.dart';
 import 'member_profile_screen.dart'; // 🔁 Import this
+import 'package:google_fonts/google_fonts.dart';
 
 
 class BaseScaffold extends StatelessWidget {
@@ -123,17 +124,18 @@ class BaseScaffold extends StatelessWidget {
               height: 50,
             ),
             const SizedBox(width: 8),
-            const Flexible(
-              child: Text(
-                "Sadhumargi Jain Sangh",
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
+          Flexible(
+  child: Text(
+    "साधुमार्गी जैन संघ",
+    overflow: TextOverflow.ellipsis,
+    style: GoogleFonts.amita(
+      fontSize: 26,
+      fontWeight: FontWeight.w600,
+      color: Colors.white,
+    ),
+  ),
+),
+
           ],
         ),
         centerTitle: true,
@@ -173,9 +175,9 @@ bottomNavigationBar: Padding(
   items: [
     _buildNavItem(Icons.home, "Home", 0),
     _buildNavItem(Icons.watch_later_outlined, "Events", 1),
-    _buildNavItem(Icons.menu_book, "Sahitya", 2),
-    _buildNavItem(Icons.book, "Shramnopasak", 3),
-    _buildNavItem(Icons.event, "Shivir", 4),
+    _buildNavItem(Icons.menu_book, "साहित्य", 2),
+    _buildNavItem(Icons.book, "श्रमणोपासक", 3),
+    _buildNavItem(Icons.event, "शिविर", 4),
     _buildNavItem(Icons.person, "Profile", 5),
   ],
 ),

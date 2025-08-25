@@ -18,6 +18,7 @@
   import 'chaturmas_suchi_screen.dart';
   import 'mahila_samiti/layout_screen.dart';
   import 'yuva_sangh/layout.dart';
+  import 'package:google_fonts/google_fonts.dart';
 
   class HomeScreen extends StatefulWidget {
     const HomeScreen({super.key});
@@ -71,14 +72,15 @@
                   fit: BoxFit.contain,
                 ),
                 const SizedBox(width: 10),
-                const Text(
-                  "Sadhumargi Jain Sangh",
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
+              Text(
+  "साधुमार्गी जैन संघ",
+  style: GoogleFonts.amita(
+    color: Colors.white,
+    fontSize: 26,
+    fontWeight: FontWeight.w600,
+  ),
+),
+
               ],
             ),
           ),
@@ -144,9 +146,9 @@
               items: [
     _buildNavItem(Icons.home, "Home", 0),
     _buildNavItem(Icons.access_time, "Events", 1),
-    _buildNavItem(Icons.menu_book, "Sahitya", 2),
-    _buildNavItem(Icons.book, "Shamnopasak", 3),
-    _buildNavItem(Icons.event, "Shivir", 4),
+    _buildNavItem(Icons.menu_book, "साहित्य", 2),
+    _buildNavItem(Icons.book, "श्रमणोपासक", 3),
+    _buildNavItem(Icons.event, "शिविर", 4),
     _buildNavItem(Icons.person, "Profile", 5), // ✅ New
   ],
               ), // 👈 bottom navigation bar ka code
@@ -393,7 +395,7 @@
   ),
   _buildIconCard(
     context,
-    "पाखी का पाना",
+    "पखी का पाना",
     Icons.calendar_month,
     Colors.orange,
     const PakhiKaPaanaScreen(),

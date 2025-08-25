@@ -1,16 +1,30 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- Permissions -->
+    <!-- Internet is required for API calls/WebViews -->
     <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+
+    <!-- Android 10–12 ke liye (API 29–32) external read -->
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+
+    <!-- Android 13+ (API 33+) ke liye media permissions -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <!-- Agar videos/audio bhi access karte ho to inko bhi uncomment karo -->
+    <!-- <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" /> -->
+    <!-- <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" /> -->
+
+    <!-- WRITE_EXTERNAL_STORAGE ko hata diya gaya hai (modern Android me ignore hota hai) -->
 
     <application
         android:label="ABSJS"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="true"
-        android:enableOnBackInvokedCallback="true">
+        android:enableOnBackInvokedCallback="true"
+        android:requestLegacyExternalStorage="true"
+        tools:replace="android:requestLegacyExternalStorage">
 
         <activity
             android:name=".MainActivity"
@@ -30,7 +44,6 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-
         </activity>
 
         <meta-data
@@ -38,18 +51,19 @@
             android:value="2" />
     </application>
 
+    <!-- Queries (aapke original jaisa hi rakhe) -->
     <queries>
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT" />
             <data android:mimeType="text/plain" />
         </intent>
-         <intent>
-        <action android:name="android.intent.action.VIEW" />
-        <data android:scheme="http" />
-    </intent>
-    <intent>
-        <action android:name="android.intent.action.VIEW" />
-        <data android:scheme="https" />
-    </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="http" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
+        </intent>
     </queries>
 </manifest>

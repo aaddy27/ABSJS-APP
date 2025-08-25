@@ -200,7 +200,7 @@ class _EducationState extends State<Education> with SingleTickerProviderStateMix
   @override
   Widget build(BuildContext context) {
     return BaseScaffold(
-      selectedIndex: 3,
+      selectedIndex:-1,
       body: DefaultTabController(
         length: 2,
         child: Column(
