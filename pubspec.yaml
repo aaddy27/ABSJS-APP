@@ -76,7 +76,7 @@ flutter:
 # ✅ Splash Screen Configuration
 flutter_native_splash:
   color: "#ffffff"
-  image: assets/logo.jpeg
+  image: assets/logo.png
   android: true
   ios: true
   android_gravity: center
@@ -85,4 +85,4 @@ flutter_native_splash:
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/logo.jpeg"
+  image_path: "assets/logo.png"

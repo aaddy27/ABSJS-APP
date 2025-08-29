@@ -1,4 +1,4 @@
-package com.example.laravel_auth_flutter
+package com.sabsjs.laravel_auth_flutter
 
 import io.flutter.embedding.android.FlutterActivity
 
