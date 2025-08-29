@@ -49,36 +49,29 @@ class _LayoutScreenState extends State<LayoutScreen> {
       extendBody: true,
 
       // ✅ Common AppBar (हर जगह रहेगा)
-      appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(60),
-        child: AppBar(
-          elevation: 0,
-          flexibleSpace: Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Color(0xFFFFD700), Color(0xFFFFC107)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-            ),
+    appBar: PreferredSize(
+  preferredSize: const Size.fromHeight(60),
+  child: AppBar(
+    elevation: 0,
+    backgroundColor: const Color(0xFF1E3A8A), // 🔵 Solid color set
+    title: Row(
+      children: [
+        Image.asset("assets/images/mslogo.png", height: 45),
+        const SizedBox(width: 12),
+        Text(
+          widget.title,
+          style: GoogleFonts.amita(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: Colors.white, // ✅ Text ko white rakha
           ),
-          title: Row(
-            children: [
-              Image.asset("assets/images/mslogo.png", height: 55),
-              const SizedBox(width: 12),
-              Text(
-                widget.title,
-                style: GoogleFonts.amita(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black,
-                ),
-              ),
-            ],
-          ),
-          centerTitle: false,
         ),
-      ),
+      ],
+    ),
+    centerTitle: false,
+  ),
+),
+
 
       // ✅ अगर custom body मिला तो वही दिखाओ, वरना nav वाला screen
       body: widget.body ?? _screens[_selectedIndex],

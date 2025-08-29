@@ -72,6 +72,7 @@ flutter:
     - assets/images/golden_steps.JPEG
     - assets/images/yuva_parichay.jpeg
     - assets/images/yuva-r.png
+    -  assets/11zon_resized.png
 
 # ✅ Splash Screen Configuration
 flutter_native_splash:

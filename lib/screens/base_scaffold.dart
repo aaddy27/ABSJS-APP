@@ -126,7 +126,7 @@ class BaseScaffold extends StatelessWidget {
             const SizedBox(width: 8),
           Flexible(
   child: Text(
-    "साधुमार्गी जैन संघ",
+    "श्री अ.भा.सा जैन संघ",
     overflow: TextOverflow.ellipsis,
     style: GoogleFonts.amita(
       fontSize: 26,

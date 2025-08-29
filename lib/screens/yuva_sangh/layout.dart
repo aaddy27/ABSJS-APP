@@ -49,41 +49,41 @@ class _YuvaSanghLayoutState extends State<YuvaSanghLayout> {
   }
 
   PreferredSizeWidget _buildAppBar() {
-    final canPop = Navigator.of(context).canPop();
-    return AppBar(
-      backgroundColor: _brown,
-      elevation: 2,
-      centerTitle: true,
-      leadingWidth: canPop ? 100 : 56,
-      leading: Row(
-        children: [
-          if (canPop)
-            IconButton(
-              icon: const Icon(Icons.arrow_back, color: Colors.white),
-              onPressed: () => Navigator.of(context).pop(),
-            ),
-          Padding(
-            padding: EdgeInsets.only(left: canPop ? 0 : 8.0),
-            child: Image.asset(
-              'assets/images/yuva-r.png',
-              height: 40,
-              width: 40,
-              fit: BoxFit.contain,
-            ),
+  final canPop = Navigator.of(context).canPop();
+  return AppBar(
+    backgroundColor: const Color(0xFF1E3A8A), // 🔵 solid blue
+    elevation: 2,
+    centerTitle: true,
+    leadingWidth: canPop ? 100 : 56,
+    leading: Row(
+      children: [
+        if (canPop)
+          IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            onPressed: () => Navigator.of(context).pop(),
           ),
-        ],
-      ),
-      title: Text(
-        widget.customTitle ?? 'समता युवा संघ',
-        style: GoogleFonts.amita(
-          fontSize: 28,
-          fontWeight: FontWeight.w700,
-          color: Colors.white,
-          height: 1.1,
+        Padding(
+          padding: EdgeInsets.only(left: canPop ? 0 : 8.0),
+          child: Image.asset(
+            'assets/images/yuva-r.png',
+            height: 40,
+            width: 40,
+            fit: BoxFit.contain,
+          ),
         ),
+      ],
+    ),
+    title: Text(
+      widget.customTitle ?? 'श्री अ.भा.सा जैन समता युवा संघ',
+      style: GoogleFonts.amita(
+        fontSize: 18,
+        fontWeight: FontWeight.w700,
+        color: Colors.white, // ✅ white text
+        height: 1.1,
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildBody() {
     // ✅ custom page दिखाओ जब तक _showCustom true है
@@ -117,7 +117,7 @@ class _YuvaSanghLayoutState extends State<YuvaSanghLayout> {
         backgroundColor: _brownDark,
         foregroundColor: Colors.white,
         elevation: 3,
-        onPressed: () => _goTo(0), // ✅ Home दबाते ही custom से बाहर और Home tab
+        onPressed: () => _goTo(0), // ✅ Home दबाते ही custom से बाहर और Home tab ''
         child: const Icon(Icons.home),
       ),
 
