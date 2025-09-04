@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+
+// Screens
 import 'home_screen.dart';
 import 'pravartiya_screen.dart';
 import 'mahila_karyakarini_screen.dart';
@@ -9,7 +11,7 @@ import 'mahila_photo_gallery_screen.dart';
 
 class LayoutScreen extends StatefulWidget {
   final String title;
-  final Widget? body; // ✅ optional
+  final Widget? body; // optional override body
 
   const LayoutScreen({
     super.key,
@@ -33,7 +35,7 @@ class _LayoutScreenState extends State<LayoutScreen> {
       MahilaHomeScreen(),
       PravartiyaScreen(),
       MahilaKaryakariniScreen(),
-       DownloadHomeScreen(),
+      DownloadHomeScreen(),
       MahilaEventsScreen(),
       MahilaPhotoGalleryScreen(),
     ];
@@ -45,49 +47,72 @@ class _LayoutScreenState extends State<LayoutScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Breakpoint-based base font + FittedBox for extra safety
+    final width = MediaQuery.of(context).size.width;
+    double baseTitleSize = 20;
+    if (width < 360) {
+      baseTitleSize = 16; // very small phones
+    } else if (width < 480) {
+      baseTitleSize = 18; // typical phones
+    } else if (width < 720) {
+      baseTitleSize = 20; // large phones/small tablets
+    } else {
+      baseTitleSize = 22; // tablets+
+    }
+
     return Scaffold(
       extendBody: true,
 
-      // ✅ Common AppBar (हर जगह रहेगा)
-    appBar: PreferredSize(
-  preferredSize: const Size.fromHeight(60),
-  child: AppBar(
-    elevation: 0,
-    backgroundColor: const Color(0xFF1E3A8A), // 🔵 Solid color set
-    title: Row(
-      children: [
-        Image.asset("assets/images/mslogo.png", height: 45),
-        const SizedBox(width: 12),
-        Text(
-          widget.title,
-          style: GoogleFonts.amita(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: Colors.white, // ✅ Text ko white rakha
+      // ---------- Common AppBar ----------
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(60),
+        child: AppBar(
+          elevation: 0,
+          backgroundColor: const Color(0xFF1E3A8A),
+          titleSpacing: 12,
+          title: Row(
+            children: [
+              Image.asset("assets/images/mslogo.png", height: 45),
+              const SizedBox(width: 12),
+              // Title that shrinks if space is tight
+              Expanded(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    widget.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.amita(
+                      fontSize: baseTitleSize,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
+          centerTitle: false,
         ),
-      ],
-    ),
-    centerTitle: false,
-  ),
-),
+      ),
 
-
-      // ✅ अगर custom body मिला तो वही दिखाओ, वरना nav वाला screen
+      // ---------- Body ----------
       body: widget.body ?? _screens[_selectedIndex],
 
-      // ✅ BottomNavigationBar सिर्फ main tabs में दिखेगा
+      // ---------- Bottom Navigation (only when using main tabs) ----------
       bottomNavigationBar: widget.body == null
-          ? Container(
+          ? Container
+          (
               margin: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(30),
-                boxShadow: [
+                boxShadow: const [
                   BoxShadow(
                     color: Colors.black26,
                     blurRadius: 8,
-                    offset: const Offset(0, 4),
+                    offset: Offset(0, 4),
                   ),
                 ],
               ),
@@ -98,34 +123,37 @@ class _LayoutScreenState extends State<LayoutScreen> {
                   backgroundColor: Colors.white,
                   selectedItemColor: Colors.amber[800],
                   unselectedItemColor: Colors.grey,
+                  showUnselectedLabels: true,
+                  selectedLabelStyle: GoogleFonts.hindSiliguri(fontWeight: FontWeight.w700),
+                  unselectedLabelStyle: GoogleFonts.hindSiliguri(),
                   currentIndex: _selectedIndex,
                   onTap: _onItemTapped,
-               items: const [
-    BottomNavigationBarItem(
-      icon: Icon(Icons.home),
-      label: 'होम',
-    ),
-    BottomNavigationBarItem(
-      icon: Icon(Icons.event),
-      label: 'प्रवृत्ति',
-    ),
-    BottomNavigationBarItem(
-      icon: Icon(Icons.group),
-      label: 'कार्यकारिणी',
-    ),
-    BottomNavigationBarItem(
-      icon: Icon(Icons.download),
-      label: 'DOWNLOAD',
-    ),
-    BottomNavigationBarItem(
-      icon: Icon(Icons.notifications),
-      label: 'गतिविधिया',
-    ),
-    BottomNavigationBarItem(
-      icon: Icon(Icons.photo_library),
-      label: 'गलेरी',
-    ),
-  ],
+                  items: const [
+                    BottomNavigationBarItem(
+                      icon: Icon(Icons.home),
+                      label: 'होम',
+                    ),
+                    BottomNavigationBarItem(
+                      icon: Icon(Icons.event),
+                      label: 'प्रवृत्ति',
+                    ),
+                    BottomNavigationBarItem(
+                      icon: Icon(Icons.group),
+                      label: 'कार्यकारिणी',
+                    ),
+                    BottomNavigationBarItem(
+                      icon: Icon(Icons.download),
+                      label: 'DOWNLOAD',
+                    ),
+                    BottomNavigationBarItem(
+                      icon: Icon(Icons.notifications),
+                      label: 'गतिविधिया',
+                    ),
+                    BottomNavigationBarItem(
+                      icon: Icon(Icons.photo_library),
+                      label: 'गैलरी',
+                    ),
+                  ],
                 ),
               ),
             )

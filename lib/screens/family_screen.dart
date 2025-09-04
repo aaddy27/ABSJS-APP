@@ -165,14 +165,12 @@ class _FamilyScreenState extends State<FamilyScreen> {
         Tab(text: '📋 सामान्य जानकारी'),
         Tab(text: '➕  परिवारांजलि'),
         Tab(text: '✅ वीर परिवार'),
-        Tab(text: '⬇️ डाउनलोड'),
       ]);
 
       tabViews.addAll([
         MemberInfoForm(memberId: memberId!),
         ParivaranjaliScreen(memberId: memberId!),
         VirPariwarScreen(familyId: familyId!),
-        const Center(child: Text("⬇️ डाउनलोड स्क्रीन")),
       ]);
     }
 

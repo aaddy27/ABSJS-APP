@@ -33,8 +33,15 @@ dependencies:
   google_fonts: ^4.0.4 
   pdfx: ^2.0.3
   flutter_linkify: ^6.0.0
+  flutter_staggered_animations: ^1.1.1
+  firebase_core: ^3.6.0
+  firebase_messaging: ^15.1.3
+  flutter_local_notifications: ^17.2.1
+  package_info_plus: ^8.0.2
+  
 
 
+  
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -73,6 +80,7 @@ flutter:
     - assets/images/yuva_parichay.jpeg
     - assets/images/yuva-r.png
     -  assets/11zon_resized.png
+    - assets/pdf/vivarnika.pdf
 
 # ✅ Splash Screen Configuration
 flutter_native_splash:

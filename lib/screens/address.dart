@@ -17,6 +17,8 @@ class _AddressScreenState extends State<AddressScreen> with TickerProviderStateM
   List<String> countries = [];
   List<String> states = [];
 
+  bool _isLoading = true; // For showing a loading indicator
+
   final formKey = GlobalKey<FormState>();
 
   final Map<String, TextEditingController> controllers = {
@@ -30,10 +32,8 @@ class _AddressScreenState extends State<AddressScreen> with TickerProviderStateM
     'contact_number': TextEditingController(),
   };
 
-
   String selectedCountry = '';
   String selectedState = '';
-  String selectedOriginState = '';
   String selectedAddressType = 'Factory';
   int? editId;
   String? memberId;
@@ -46,63 +46,63 @@ class _AddressScreenState extends State<AddressScreen> with TickerProviderStateM
     loadCountries();
   }
 
+  // --- API and Data Functions (No major changes here, just loading state management) ---
 
-Future<void> markAsPrimary(String addressId) async {
-  final url = Uri.parse("https://mrmapi.sadhumargi.in/api/mark-primary/$addressId");
+  Future<void> markAsPrimary(String addressId) async {
+    final url = Uri.parse("https://mrmapi.sadhumargi.in/api/mark-primary/$addressId");
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString("token");
 
-  final prefs = await SharedPreferences.getInstance();
-  final token = prefs.getString("token");
-
-  if (token == null || token.isEmpty) {
-    showToast("❌ Token not found");
-    return;
-  }
-
-  try {
-    final res = await http.post(
-      url,
-      headers: {
-        'Accept': 'application/json',
-        'Authorization': 'Bearer $token',
-      },
-    );
-
-    print("Raw response: ${res.body}");
-
-    if (res.statusCode == 200) {
-      final data = jsonDecode(res.body);
-      showToast("✅ ${data['message']}");
-      // optionally reload addresses
-      await loadSavedAddresses();
-      await loadPrimaryAddress();
-    } else {
-      showToast("❌ Server Error (${res.statusCode})");
+    if (token == null || token.isEmpty) {
+      showToast("❌ Token not found", isError: true);
+      return;
     }
-  } catch (e) {
-    print("Exception: $e");
-    showToast("❌ Network error: $e");
-  }
-}
 
+    setState(() => _isLoading = true);
+    try {
+      final res = await http.post(
+        url,
+        headers: {
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      final data = jsonDecode(res.body);
+      if (res.statusCode == 200) {
+        showToast("✅ ${data['message']}");
+        await loadSavedAddresses();
+        await loadPrimaryAddress();
+      } else {
+        showToast("❌ ${data['message'] ?? 'Server Error'}", isError: true);
+      }
+    } catch (e) {
+      showToast("❌ Network error: $e", isError: true);
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
 
   Future<void> loadMemberIdAndData() async {
-  final prefs = await SharedPreferences.getInstance(); // ✅ this line is REQUIRED
-  final rawMemberId = prefs.getString('member_id');
-  print("SharedPreferences से मिला member_id: $rawMemberId");
-
-  if (rawMemberId != null && int.tryParse(rawMemberId) != null) {
-    final actualId = int.parse(rawMemberId) - 100000;
-    memberId = actualId.toString(); // Save the adjusted ID to use in API calls
-    print("API में भेजा जा रहा adjusted member_id: $memberId");
-
-    setState(() {}); // Refresh UI
-    loadPrimaryAddress();
-    loadSavedAddresses();
+    setState(() => _isLoading = true);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final rawMemberId = prefs.getString('member_id');
+      if (rawMemberId != null && int.tryParse(rawMemberId) != null) {
+        final actualId = int.parse(rawMemberId) - 100000;
+        memberId = actualId.toString();
+        await loadPrimaryAddress();
+        await loadSavedAddresses();
+      }
+    } catch (e) {
+      showToast("Failed to load user data: $e", isError: true);
+    } finally {
+      setState(() => _isLoading = false);
+    }
   }
-}
-
 
   Future<void> loadPrimaryAddress() async {
+    if (memberId == null) return;
     final url = 'https://mrmapi.sadhumargi.in/api/primary-address/$memberId';
     final res = await http.get(Uri.parse(url));
     if (res.statusCode == 200) {
@@ -111,6 +111,7 @@ Future<void> markAsPrimary(String addressId) async {
   }
 
   Future<void> loadSavedAddresses() async {
+    if (memberId == null) return;
     final url = 'https://mrmapi.sadhumargi.in/api/addresses/$memberId';
     final res = await http.get(Uri.parse(url));
     if (res.statusCode == 200) {
@@ -148,98 +149,81 @@ Future<void> markAsPrimary(String addressId) async {
     );
     if (response.statusCode == 200) {
       final List data = jsonDecode(response.body);
-     final stateNames = data.map<String>((s) => "${s['name']}|${s['id']}").toList();
+      final stateNames = data.map<String>((s) => "${s['name']}|${s['id']}").toList();
       setState(() => states = stateNames);
     }
   }
+  
+  Future<void> saveOrUpdateAddress() async {
+    if (!formKey.currentState!.validate() || memberId == null) return;
 
-Future<void> saveOrUpdateAddress() async {
-  if (!formKey.currentState!.validate() || memberId == null) return;
+    setState(() => _isLoading = true);
 
-  final prefs = await SharedPreferences.getInstance();
-  final token = prefs.getString('token'); // Use only if API is protected
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
 
-  final isUpdate = editId != null;
-  final url = Uri.parse(
-    isUpdate
-      ? 'https://mrmapi.sadhumargi.in/api/update-address/$editId'
-      : 'https://mrmapi.sadhumargi.in/api/save-address',
-  );
+    final isUpdate = editId != null;
+    final url = Uri.parse(
+      isUpdate
+          ? 'https://mrmapi.sadhumargi.in/api/update-address/$editId'
+          : 'https://mrmapi.sadhumargi.in/api/save-address',
+    );
 
-final data = {
-  "member_id": memberId,
-  "address1": controllers['address1']!.text,
-  "address2": controllers['address2']!.text,
-  "post": controllers['post']!.text,
-  "city": controllers['city']!.text,
-  "district": controllers['district']!.text,
-  "pincode": controllers['pincode']!.text,
-  "landmark": controllers['landmark']!.text,
-  "contact_number": controllers['contact_number']!.text,
-  "country": selectedCountry.split('|').first,
-"state": int.tryParse(selectedState.split('|').last) ?? 0,
-  "address_type": selectedAddressType,
-  "is_primary": 0, // <-- ✅ make dynamic if needed
-  "is_enabled": 1,
-};
+    final data = {
+      "member_id": memberId,
+      "address1": controllers['address1']!.text,
+      "address2": controllers['address2']!.text,
+      "post": controllers['post']!.text,
+      "city": controllers['city']!.text,
+      "district": controllers['district']!.text,
+      "pincode": controllers['pincode']!.text,
+      "landmark": controllers['landmark']!.text,
+      "contact_number": controllers['contact_number']!.text,
+      "country": selectedCountry.split('|').first,
+      "state": int.tryParse(selectedState.split('|').last) ?? 0,
+      "address_type": selectedAddressType,
+      "is_primary": 0,
+      "is_enabled": 1,
+    };
 
+    try {
+      final res = await (isUpdate
+          ? http.put(
+              url,
+              headers: {
+                'Content-Type': 'application/json',
+                if (token != null) 'Authorization': 'Bearer $token',
+              },
+              body: jsonEncode(data),
+            )
+          : http.post(
+              url,
+              headers: {
+                'Content-Type': 'application/json',
+                if (token != null) 'Authorization': 'Bearer $token',
+              },
+              body: jsonEncode(data),
+            ));
 
-  try {
-    final res = await (isUpdate
-        ? http.put(
-            url,
-            headers: {
-              'Content-Type': 'application/json',
-              if (token != null) 'Authorization': 'Bearer $token',
-            },
-            body: jsonEncode(data),
-          )
-        : http.post(
-            url,
-            headers: {
-              'Content-Type': 'application/json',
-              if (token != null) 'Authorization': 'Bearer $token',
-            },
-            body: jsonEncode(data),
-          ));
+      final body = jsonDecode(res.body);
 
-    final body = jsonDecode(res.body);
-
-   if (res.statusCode == 200 || res.statusCode == 201) {
-  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-    content: Text(body['message'] ?? (isUpdate ? '✅ Address updated.' : '✅ Address saved.')),
-  ));
-
-  resetForm();
-  await loadSavedAddresses();
-  await loadPrimaryAddress();
-
-  // 👇 This line will auto-switch to "Saved Addresses" tab
-  _tabController.animateTo(2);
-}
- else {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text("❌ Error: ${body['message'] ?? 'Unknown error'}"),
-      ));
+      if (res.statusCode == 200 || res.statusCode == 201) {
+        showToast(body['message'] ?? (isUpdate ? '✅ Address updated.' : '✅ Address saved.'));
+        resetForm();
+        await loadSavedAddresses();
+        await loadPrimaryAddress();
+        _tabController.animateTo(2);
+      } else {
+        showToast("❌ Error: ${body['message'] ?? 'Unknown error'}", isError: true);
+      }
+    } catch (e) {
+      showToast("❌ Network error: $e", isError: true);
+    } finally {
+      setState(() => _isLoading = false);
     }
-  } catch (e) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text("❌ Network error: $e"),
-    ));
-  }
-}
-
-  void resetForm() {
-    controllers.forEach((_, c) => c.clear());
-    selectedCountry = '';
-    selectedState = '';
-    selectedOriginState = '';
-    selectedAddressType = 'Factory';
-    editId = null;
-    setState(() {});
   }
 
-  Future<void> deleteAddress(int id) async {  
+  Future<void> deleteAddress(int id) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -247,320 +231,439 @@ final data = {
         content: const Text("Are you sure you want to delete this address?"),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("Cancel")),
-          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text("Delete")),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text("Delete", style: TextStyle(color: Colors.red))),
         ],
       ),
     );
     if (confirmed != true) return;
-
+    
+    setState(() => _isLoading = true);
     final url = 'https://mrmapi.sadhumargi.in/api/delete-address/$id';
-    final res = await http.delete(Uri.parse(url));
-    if (res.statusCode == 200) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Deleted successfully')));
-      loadSavedAddresses();
-      loadPrimaryAddress();
+    try {
+      final res = await http.delete(Uri.parse(url));
+      if (res.statusCode == 200) {
+        showToast('✅ Deleted successfully');
+        await loadSavedAddresses();
+        await loadPrimaryAddress();
+      } else {
+        showToast('❌ Failed to delete', isError: true);
+      }
+    } catch (e) {
+      showToast("❌ Network error: $e", isError: true);
+    } finally {
+      setState(() => _isLoading = false);
     }
   }
-void showToast(String message) {
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(content: Text(message)),
-  );
-}
+  
+  void resetForm() {
+    formKey.currentState?.reset();
+    controllers.forEach((_, c) => c.clear());
+    setState(() {
+      selectedCountry = '';
+      selectedState = '';
+      states = [];
+      selectedAddressType = 'Factory';
+      editId = null;
+    });
+  }
+  
+  void showToast(String message, {bool isError = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? Colors.redAccent : Colors.green,
+      ),
+    );
+  }
 
+  // --- UI Build Methods ---
   @override
   Widget build(BuildContext context) {
+    const primaryColor = Color(0xFF0D47A1); // A professional deep blue
+
     return Scaffold(
-      appBar: AppBar(title: const Text('पता प्रबंधन')),
+      appBar: AppBar(
+        title: const Text('Address Management'),
+        backgroundColor: primaryColor,
+        foregroundColor: Colors.white,
+        elevation: 4,
+      ),
       body: Column(
         children: [
-          // if (memberId != null)
-          //   Container(
-          //     width: double.infinity,
-          //     color: Colors.grey.shade300,
-          //     padding: const EdgeInsets.all(8),
-          //     child: Text(
-          //       'Logged-in Member ID: $memberId',
-          //       style: const TextStyle(fontWeight: FontWeight.bold),
-          //     ),
-          //   ),
           Container(
-            color: Colors.blue[100],
+            color: primaryColor.withOpacity(0.1),
             child: TabBar(
               controller: _tabController,
-              labelColor: Colors.blue,
-              unselectedLabelColor: Colors.black,
-              indicatorColor: Colors.blue,
+              labelColor: primaryColor,
+              unselectedLabelColor: Colors.grey.shade600,
+              indicatorColor: primaryColor,
+              indicatorWeight: 3.0,
               tabs: const [
-                Tab(text: 'Primary Address'),
-                Tab(text: 'Add / Update Address'),
-                Tab(text: 'Saved Addresses'),
+                Tab(icon: Icon(Icons.star), text: 'Primary'),
+                Tab(icon: Icon(Icons.add_location_alt), text: 'Add/Update'),
+                Tab(icon: Icon(Icons.list_alt), text: 'Saved'),
               ],
             ),
           ),
           Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: [
-                buildPrimaryAddressView(),
-                buildAddressForm(),
-                buildSavedAddressList(),
-              ],
-            ),
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : TabBarView(
+                    controller: _tabController,
+                    children: [
+                      buildPrimaryAddressView(),
+                      buildAddressForm(),
+                      buildSavedAddressList(),
+                    ],
+                  ),
           ),
         ],
       ),
     );
   }
-// primary address tab 
-Widget buildPrimaryAddressView() {
-  if (primaryAddress == null) {
-    return Container(
-      width: double.infinity,
-      height: double.infinity,
-      color: Colors.grey.shade100,
-      child: const Center(
-        child: Text(
-          "📭 कोई प्राथमिक पता उपलब्ध नहीं है।",
-          style: TextStyle(fontSize: 18),
+
+  // Tab 1: Primary Address View
+  Widget buildPrimaryAddressView() {
+    if (primaryAddress == null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.mail_outline, size: 80, color: Colors.grey.shade400),
+            const SizedBox(height: 16),
+            const Text(
+              "No Primary Address Set",
+              style: TextStyle(fontSize: 20, color: Colors.grey),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              "You can set one from your saved addresses.",
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 16, color: Colors.grey),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Center(
+      child: Container(
+        margin: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          gradient: LinearGradient(
+            colors: [Colors.blue.shade800, Colors.blue.shade500],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.2),
+              blurRadius: 15,
+              offset: const Offset(0, 10),
+            ),
+          ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Row(
+                children: [
+                  Icon(Icons.home, color: Colors.white, size: 30),
+                  SizedBox(width: 12),
+                  Text(
+                    "Primary Address",
+                    style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white),
+                  ),
+                ],
+              ),
+              const Divider(color: Colors.white54, height: 30),
+              Text(
+                "${primaryAddress!['address1']}, ${primaryAddress!['address2']}",
+                style: const TextStyle(fontSize: 16, color: Colors.white, height: 1.5),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                "${primaryAddress!['city']}, ${primaryAddress!['district']} - ${primaryAddress!['pincode']}",
+                style: const TextStyle(fontSize: 16, color: Colors.white, height: 1.5),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                "${primaryAddress!['state']}, ${primaryAddress!['country']}",
+                style: const TextStyle(fontSize: 16, color: Colors.white, height: 1.5),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  return Container(
-    width: double.infinity,
-    height: double.infinity,
-    color: Colors.green.shade50,
-    child: Center(
-      child: Container(
-        constraints: const BoxConstraints(
-          maxWidth: 300, // 👈 This keeps it portrait-style
-          minHeight: 300,
-        ),
-        child: Card(
-          elevation: 10,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          color: Colors.white,
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Text(
-                  "🏡 प्राथमिक पता",
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.green),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 20),
-                Text(
-                  "📍 ${primaryAddress!['address1']}, ${primaryAddress!['address2']}\n"
-                  "🏤 ${primaryAddress!['post']}, ${primaryAddress!['city']}, ${primaryAddress!['district']} - ${primaryAddress!['pincode']}\n"
-                  "🌐 ${primaryAddress!['state']}, ${primaryAddress!['country']}",
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 16, height: 1.5),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    ),
-  );
-}
-
-
-// form for add and edit tab 
-
+  // Tab 2: Add/Update Form View
   Widget buildAddressForm() {
-  return Padding(
-    padding: const EdgeInsets.all(16),
-    child: Form(
+    return Form(
       key: formKey,
       child: ListView(
+        padding: const EdgeInsets.all(16),
         children: [
-          const Text("📋 पता फॉर्म", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blue)),
-          const SizedBox(height: 10),
-          ...[
-            ['address1', '🏠 पता 1 *'],
-            ['address2', '🏠 पता 2'],
-            ['post', '🏤 पोस्ट *'],
-            ['city', '🏙️ शहर *'],
-            ['district', '🗺️ जिला *'],
-            ['pincode', '🔢 पिन कोड *'],
-          ].map((field) => Padding(
-            padding: const EdgeInsets.symmetric(vertical: 6),
-            child: TextFormField(
-              controller: controllers[field[0]]!,
-              decoration: InputDecoration(
-                labelText: field[1],
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                fillColor: Colors.blue.shade50,
-                filled: true,
-              ),
-              validator: (v) => field[1].contains('*') && (v == null || v.isEmpty) ? 'Required' : null,
-            ),
-          )),
-          const SizedBox(height: 10),
-DropdownButtonFormField<String>(
-  isExpanded: true, // ✅ Prevents overflow
-  value: countries.contains(selectedCountry) ? selectedCountry : null,
-  items: countries.map((c) {
-    final parts = c.split('|');
-    return DropdownMenuItem(
-      value: c,
-      child: Text(
-        "🌍 ${parts[0]}",
-        overflow: TextOverflow.ellipsis,
-      ),
-    );
-  }).toList(),
-  onChanged: (v) {
-    setState(() {
-      selectedCountry = v!;
-      selectedState = '';
-      states = [];
-      loadStates(v);
-    });
-  },
-  decoration: const InputDecoration(labelText: '🌐 देश'),
-),
-
-
-          const SizedBox(height: 10),
-        DropdownButtonFormField<String>(
-  isExpanded: true,
-  value: states.contains(selectedState) ? selectedState : null,
-  items: states.map((s) {
-    final parts = s.split('|');
-    return DropdownMenuItem(
-      value: s,
-      child: Text(
-        "🏞️ ${parts[0]}",
-        overflow: TextOverflow.ellipsis,
-      ),
-    );
-  }).toList(),
-  onChanged: (v) => setState(() => selectedState = v!),
-  decoration: const InputDecoration(labelText: '🗺️ राज्य'),
-),
-
-          const SizedBox(height: 10),
+          _buildTextField(
+              controller: controllers['address1']!,
+              label: 'Address Line 1 *',
+              icon: Icons.home_work_outlined),
+          _buildTextField(
+              controller: controllers['address2']!,
+              label: 'Address Line 2',
+              icon: Icons.add_road_outlined,
+              isRequired: false),
+          _buildTextField(
+              controller: controllers['post']!,
+              label: 'Post Office *',
+              icon: Icons.local_post_office_outlined),
+          _buildTextField(
+              controller: controllers['city']!,
+              label: 'City *',
+              icon: Icons.location_city_outlined),
+          _buildTextField(
+              controller: controllers['district']!,
+              label: 'District *',
+              icon: Icons.map_outlined),
+          _buildTextField(
+              controller: controllers['pincode']!,
+              label: 'Pincode *',
+              icon: Icons.pin_outlined,
+              keyboardType: TextInputType.number),
+          
+          const SizedBox(height: 12),
+          // Country Dropdown
+          DropdownButtonFormField<String>(
+            isExpanded: true,
+            value: countries.contains(selectedCountry) ? selectedCountry : null,
+            items: countries.map((c) {
+              final parts = c.split('|');
+              return DropdownMenuItem(value: c, child: Text(parts[0], overflow: TextOverflow.ellipsis));
+            }).toList(),
+            onChanged: (v) {
+              if (v == null) return;
+              setState(() {
+                selectedCountry = v;
+                selectedState = '';
+                states = [];
+                loadStates(v);
+              });
+            },
+            decoration: _inputDecoration('Country *', Icons.public_outlined),
+            validator: (v) => v == null || v.isEmpty ? 'Please select a country' : null,
+          ),
+          const SizedBox(height: 12),
+          // State Dropdown
+          DropdownButtonFormField<String>(
+            isExpanded: true,
+            value: states.contains(selectedState) ? selectedState : null,
+            items: states.map((s) {
+              final parts = s.split('|');
+              return DropdownMenuItem(value: s, child: Text(parts[0], overflow: TextOverflow.ellipsis));
+            }).toList(),
+            onChanged: (v) => setState(() => selectedState = v!),
+            decoration: _inputDecoration('State *', Icons.landscape_outlined),
+             validator: (v) => v == null || v.isEmpty ? 'Please select a state' : null,
+          ),
+          const SizedBox(height: 12),
+          // Address Type Dropdown
           DropdownButtonFormField<String>(
             value: selectedAddressType,
-            items: ['Factory', 'Residential', 'Office/Business', 'Other'].map(
-              (s) => DropdownMenuItem(value: s, child: Text("🏷️ $s")),
-            ).toList(),
+            items: ['Factory', 'Residential', 'Office/Business', 'Other']
+                .map((s) => DropdownMenuItem(value: s, child: Text(s)))
+                .toList(),
             onChanged: (v) => setState(() => selectedAddressType = v!),
-            decoration: const InputDecoration(labelText: '🏢 पता प्रकार'),
+            decoration: _inputDecoration('Address Type', Icons.category_outlined),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 24),
           ElevatedButton.icon(
-            icon: const Icon(Icons.save),
-            label: Text(editId == null ? "✅ पता सेव करें" : "✏️ पता अपडेट करें"),
+            icon: Icon(editId == null ? Icons.save_alt : Icons.edit),
+            label: Text(editId == null ? "Save Address" : "Update Address"),
             onPressed: saveOrUpdateAddress,
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blue,
+              backgroundColor: const Color(0xFF0D47A1),
               foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 14),
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
           ),
         ],
       ),
-    ),
-  );
-}
-
-//tab 3 saved address 
-  Widget buildSavedAddressList() {
-  if (savedAddresses.isEmpty) {
-    return const Center(child: Text("📭 कोई पता उपलब्ध नहीं है।", style: TextStyle(fontSize: 18)));
+    );
   }
 
-  return ListView.builder(
-    padding: const EdgeInsets.all(16),
-    itemCount: savedAddresses.length,
-    itemBuilder: (_, i) {
-      final a = savedAddresses[i];
-      return Card(
-        margin: const EdgeInsets.symmetric(vertical: 8),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        elevation: 3,
-        child: ListTile(
-          title: Text("📍 ${a['address1']}, ${a['address2']}"),
-          subtitle: Text("🏙️ ${a['city']}, ${a['district']} - ${a['pincode']}"),
-          onTap: () => showDialog(
-            context: context,
-            builder: (_) => AlertDialog(
-              title: const Text("🏠 पता विवरण", style: TextStyle(color: Colors.deepPurple)),
-              content: Text(
-                "${a['address1']}, ${a['address2']},\n📮 ${a['post']}, ${a['city']}, ${a['district']} - ${a['pincode']},\n🌐 ${a['state']}, ${a['country']}",
-                style: const TextStyle(fontSize: 16),
-              ),
-              actions: [
-                TextButton(
+  // Tab 3: Saved Address List
+  Widget buildSavedAddressList() {
+    if (savedAddresses.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.add_location_alt_outlined, size: 80, color: Colors.grey.shade400),
+            const SizedBox(height: 16),
+            const Text(
+              "No Saved Addresses",
+              style: TextStyle(fontSize: 20, color: Colors.grey),
+            ),
+             const SizedBox(height: 8),
+            const Text(
+              "Addresses you add will appear here.",
+              style: TextStyle(fontSize: 16, color: Colors.grey),
+            ),
+          ],
+        ),
+      );
+    }
 
-                  
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text("❌ बंद करें"),
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+      itemCount: savedAddresses.length,
+      itemBuilder: (_, i) {
+        final a = savedAddresses[i];
+        final bool isPrimary = a['is_primary'] == 1;
+
+        return Card(
+          margin: const EdgeInsets.symmetric(vertical: 8),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(
+              color: isPrimary ? Colors.amber.shade700 : Colors.grey.shade300,
+              width: isPrimary ? 1.5 : 1,
+            ),
+          ),
+          elevation: 3,
+          child: Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ListTile(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 10),
+                  title: Text(
+                    "${a['address1']}, ${a['address2']}",
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  subtitle: Text("${a['city']}, ${a['state']} - ${a['pincode']}"),
+                  leading: Icon(
+                    Icons.location_on,
+                    color: Colors.blue.shade700,
+                  ),
+                ),
+                const Divider(height: 1),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      if (isPrimary)
+                        const Chip(
+                          avatar: Icon(Icons.star, color: Colors.white, size: 16),
+                          label: Text('Primary'),
+                          backgroundColor: Colors.amber,
+                          labelStyle: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                          padding: EdgeInsets.symmetric(horizontal: 8),
+                        )
+                      else
+                        const SizedBox(), // To maintain space
+                      
+                      Row(
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.edit, color: Colors.blueAccent),
+                            tooltip: 'Edit',
+                            onPressed: () async {
+                              // Pre-fill controllers
+                              for (final k in controllers.keys) {
+                                controllers[k]?.text = a[k]?.toString() ?? '';
+                              }
+
+                              // Pre-select country
+                              final countryString = countries.firstWhere(
+                                (c) => c.split('|').first == a['country'],
+                                orElse: () => '',
+                              );
+                              
+                              setState(() {
+                                selectedCountry = countryString;
+                                editId = a['id'];
+                                selectedAddressType = a['address_type'] ?? 'Factory';
+                              });
+
+                              // Load states for the country and then select the state
+                              if (countryString.isNotEmpty) {
+                                await loadStates(countryString);
+                                setState(() {
+                                  selectedState = states.firstWhere(
+                                    (s) => s.split('|').last == a['state'].toString(),
+                                    orElse: () => '',
+                                  );
+                                });
+                              }
+                              _tabController.animateTo(1);
+                            },
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.delete, color: Colors.redAccent),
+                            tooltip: 'Delete',
+                            onPressed: () => deleteAddress(a['id']),
+                          ),
+                          if (!isPrimary)
+                            IconButton(
+                              icon: const Icon(Icons.star_border, color: Colors.orangeAccent),
+                              tooltip: 'Mark as Primary',
+                              onPressed: () => markAsPrimary(a['id'].toString()),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
           ),
-trailing: Wrap(
-  spacing: 8,
-  children: [
-    IconButton(
-      icon: const Icon(Icons.edit, color: Colors.blue),
-      onPressed: () {
-        for (final k in controllers.keys) {
-          controllers[k]?.text = a[k]?.toString() ?? '';
-        }
-
-        // Find full state entry from available states
-        states.firstWhere(
-          (s) => s.split('|').last == a['state'].toString(),
-          orElse: () => '',
         );
-
-        setState(() {
-          selectedCountry = countries.firstWhere(
-            (c) => c.split('|').first == a['country'],
-            orElse: () => '',
-          );
-          selectedState = states.firstWhere(
-            (s) => s.split('|').last == a['state'].toString(),
-            orElse: () => '',
-          );
-          selectedOriginState = a['origin_state'] ?? '';
-          selectedAddressType = a['address_type'] ?? 'Factory';
-          editId = a['id'];
-        });
-
-        if (selectedCountry.isNotEmpty) {
-          loadStates(selectedCountry);
-        }
-
-        _tabController.animateTo(1);
       },
-    ),
-    IconButton(
-      icon: const Icon(Icons.delete, color: Colors.red),
-      onPressed: () => deleteAddress(a['id']),
-    ),
-    IconButton(
-      icon: const Icon(Icons.star, color: Colors.orange),
-      tooltip: 'Mark as Primary',
-      onPressed: () => markAsPrimary(a['id'].toString()),
+    );
+  }
 
-    ),
-  ],
-),
+  // --- Helper Widgets for Cleaner Code ---
 
-        ),
-      );
-    },
-  );
-}
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    bool isRequired = true,
+    TextInputType keyboardType = TextInputType.text,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6.0),
+      child: TextFormField(
+        controller: controller,
+        keyboardType: keyboardType,
+        decoration: _inputDecoration(label, icon),
+        validator: (v) => isRequired && (v == null || v.isEmpty) ? 'This field is required' : null,
+      ),
+    );
+  }
+
+  InputDecoration _inputDecoration(String label, IconData icon) {
+    return InputDecoration(
+      labelText: label,
+      prefixIcon: Icon(icon),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+      filled: true,
+      fillColor: Colors.grey.shade100,
+    );
+  }
 }

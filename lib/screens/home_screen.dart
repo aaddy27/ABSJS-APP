@@ -23,6 +23,8 @@ import 'shramnopasak_screen.dart';
 import 'upcoming_events_screen.dart';
 import 'vihar_screen.dart';
 import 'yuva_sangh/layout.dart';
+import 'notifications/notifications_screen.dart';
+
 
 /// -----------------------
 /// Design System
@@ -103,37 +105,62 @@ class _HomeScreenState extends State<HomeScreen> {
         onWillPop: () async => false,
         child: Scaffold(
           backgroundColor: AppStyle.bg,
-         appBar: AppBar(
-  automaticallyImplyLeading: false, // ✅ back button disable ho gaya
-  title: Padding(
-    padding: const EdgeInsets.only(left: 8.0),
-    child: Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Image.asset(
-          'assets/logo.png',
-          height: 75,
-          width: 75,
-          fit: BoxFit.contain,
-        ),
-        const SizedBox(width: 10),
-        Text(
-          "श्री अ.भा.सा जैन संघ",
-          style: GoogleFonts.amita(
-            color: Colors.white,
-            fontSize: 26,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ],
-    ),
-  ),
+       appBar: AppBar(
+  automaticallyImplyLeading: false, // ✅ Back button disable
   backgroundColor: const Color(0xFF1E3A8A),
   systemOverlayStyle: const SystemUiOverlayStyle(
     statusBarColor: Color(0xFF1E3A8A),
     statusBarIconBrightness: Brightness.light,
   ),
+
+  title: Row(
+    mainAxisAlignment: MainAxisAlignment.center,
+    children: [
+      Flexible(
+        flex: 2, // ✅ logo ka space control
+        child: Image.asset(
+          'assets/logo.png',
+          height: 50,
+          fit: BoxFit.contain,
+        ),
+      ),
+      const SizedBox(width: 8),
+      Expanded(
+        flex: 5, // ✅ text ka space control
+        child: FittedBox(
+          fit: BoxFit.scaleDown, // ✅ screen size ke hisaab se adjust hoga
+          child: Text(
+            "श्री अ.भा.सा जैन संघ",
+            style: GoogleFonts.amita(
+              color: Colors.white,
+              fontSize: 26, // ✅ base size, chhoti screen pe auto scale down
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ),
+    ],
+  ),
+
+  centerTitle: true,
+
+  // ✅ Notification Bell
+  actions: [
+    IconButton(
+      icon: const Icon(Icons.notifications, color: Colors.white, size: 28),
+      onPressed: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => const NotificationsScreen(),
+          ),
+        );
+      },
+    ),
+  ],
 ),
+
+
 
           body: SafeArea( // ✅ safe insets
             top: false, // AppBar already manages top

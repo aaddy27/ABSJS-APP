@@ -5,6 +5,7 @@ plugins {
     id("kotlin-android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+    id("com.google.gms.google-services")
 }
 
 android {
@@ -14,9 +15,12 @@ android {
     compileSdk = flutter.compileSdkVersion
 
     compileOptions {
+        // ✅ Java 11 + Desugaring enable
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
+        isCoreLibraryDesugaringEnabled = true
     }
+
     kotlinOptions {
         jvmTarget = JavaVersion.VERSION_11.toString()
     }
@@ -25,8 +29,8 @@ android {
         applicationId = "com.sabsjs.laravel_auth_flutter"
         minSdk = 29
         targetSdk = flutter.targetSdkVersion
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 5
+        versionName = "1.5.0"
         // multiDexEnabled = true
     }
 
@@ -67,4 +71,9 @@ android {
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    // ✅ Required for flutter_local_notifications (Java 8+ APIs on old Android versions)
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
 }

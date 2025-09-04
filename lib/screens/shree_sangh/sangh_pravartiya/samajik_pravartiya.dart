@@ -19,7 +19,7 @@ class _SamajikPravartiyaScreenState extends State<SamajikPravartiyaScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
     _apiData = fetchUtkraantiAbhiyanData();
   }
 
@@ -80,17 +80,17 @@ class _SamajikPravartiyaScreenState extends State<SamajikPravartiyaScreen>
                   ),
                 ),
               ),
-              Tab(
-                child: SizedBox(
-                  width: 160,
-                  child: Text(
-                    'उत्क्रान्ति अभियान',
-                    textAlign: TextAlign.center,
-                    maxLines: 2,
-                    overflow: TextOverflow.visible,
-                  ),
-                ),
-              ),
+              // Tab(
+              //   child: SizedBox(
+              //     width: 160,
+              //     child: Text(
+              //       'उत्क्रान्ति अभियान',
+              //       textAlign: TextAlign.center,
+              //       maxLines: 2,
+              //       overflow: TextOverflow.visible,
+              //     ),
+              //   ),
+              // ),
             ],
           ),
           Expanded(
@@ -290,39 +290,39 @@ class _SamajikPravartiyaScreenState extends State<SamajikPravartiyaScreen>
   ),
 ),
                 // TAB 4 - API Data
-                FutureBuilder<List<dynamic>>(
-                  future: _apiData,
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(child: CircularProgressIndicator());
-                    } else if (snapshot.hasError) {
-                      return Center(child: Text("त्रुटि: ${snapshot.error}"));
-                    } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                      return const Center(child: Text("कोई डेटा उपलब्ध नहीं है"));
-                    }
-                    final data = snapshot.data!;
-                    return ListView.builder(
-                      padding: const EdgeInsets.all(16),
-                      itemCount: data.length,
-                      itemBuilder: (context, index) {
-                        return Card(
-                          margin: const EdgeInsets.only(bottom: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          elevation: 3,
-                          child: Padding(
-                            padding: const EdgeInsets.all(12.0),
-                            child: Text(
-                              data[index]['title'] ?? 'Untitled',
-                              style: GoogleFonts.hindSiliguri(fontSize: 16),
-                            ),
-                          ),
-                        );
-                      },
-                    );
-                  },
-                ),
+                // FutureBuilder<List<dynamic>>(
+                //   future: _apiData,
+                //   builder: (context, snapshot) {
+                //     if (snapshot.connectionState == ConnectionState.waiting) {
+                //       return const Center(child: CircularProgressIndicator());
+                //     } else if (snapshot.hasError) {
+                //       return Center(child: Text("त्रुटि: ${snapshot.error}"));
+                //     } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                //       return const Center(child: Text("कोई डेटा उपलब्ध नहीं है"));
+                //     }
+                //     final data = snapshot.data!;
+                //     return ListView.builder(
+                //       padding: const EdgeInsets.all(16),
+                //       itemCount: data.length,
+                //       itemBuilder: (context, index) {
+                //         return Card(
+                //           margin: const EdgeInsets.only(bottom: 12),
+                //           shape: RoundedRectangleBorder(
+                //             borderRadius: BorderRadius.circular(10),
+                //           ),
+                //           elevation: 3,
+                //           child: Padding(
+                //             padding: const EdgeInsets.all(12.0),
+                //             child: Text(
+                //               data[index]['title'] ?? 'Untitled',
+                //               style: GoogleFonts.hindSiliguri(fontSize: 16),
+                //             ),
+                //           ),
+                //         );
+                //       },
+                //     );
+                //   },
+                // ),
               ],
             ),
           ),

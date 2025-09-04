@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "438533375555",
+    "project_id": "sabsjs-8870c",
+    "storage_bucket": "sabsjs-8870c.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:438533375555:android:b2d7a471b9ab707ef476f6",
+        "android_client_info": {
+          "package_name": "com.sabsjs.laravel_auth_flutter"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBPkcL2O3pTeaSN3CBjSJt9A22QbatW5dY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

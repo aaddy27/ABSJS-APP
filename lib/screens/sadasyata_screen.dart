@@ -65,7 +65,7 @@ class _ActivitiesScreenState extends State<ActivitiesScreen> {
   @override
   Widget build(BuildContext context) {
     return BaseScaffold(
-      selectedIndex: 0,
+      selectedIndex: -1,
       body: Scaffold(
         body: isLoading
             ? const Center(child: CircularProgressIndicator())

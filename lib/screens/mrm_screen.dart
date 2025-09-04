@@ -10,11 +10,10 @@ import 'achievements_screen.dart';
 import 'general_details.dart';
 import 'trust.dart';
 import 'sadasyata_screen.dart';
-import 'change_mukhiya_screen.dart'; // 👈 Make sure this exists
+import 'change_mukhiya_screen.dart';
 
 class MrmScreen extends StatefulWidget {
   final String memberId;
-
   const MrmScreen({super.key, required this.memberId});
 
   @override
@@ -22,28 +21,7 @@ class MrmScreen extends StatefulWidget {
 }
 
 class _MrmScreenState extends State<MrmScreen> {
-  String userName = '';
-  bool isDarkMode = false;
   bool isHeadOfFamily = false;
-
-  Future<void> loadUserData() async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('token');
-    final name = prefs.getString('user_name') ?? "User";
-    isDarkMode = prefs.getBool('dark_mode') ?? false;
-    isHeadOfFamily = prefs.getBool('is_head_of_family') ?? true; // ✅ NEW
-
-    if (token == null) {
-      setState(() {
-        userName = "Guest";
-      });
-      return;
-    }
-
-    setState(() {
-      userName = name;
-    });
-  }
 
   @override
   void initState() {
@@ -51,137 +29,218 @@ class _MrmScreenState extends State<MrmScreen> {
     loadUserData();
   }
 
+  Future<void> loadUserData() async {
+    final prefs = await SharedPreferences.getInstance();
+    isHeadOfFamily = prefs.getBool('is_head_of_family') ?? true;
+    setState(() {});
+  }
+
   void navigateTo(int index) {
     Widget targetScreen;
     switch (index) {
-      case 0:
-        targetScreen = FamilyScreen();
-        break;
-      case 1:
-        targetScreen = const AddressScreen();
-        break;
-      case 2:
-        targetScreen = Education();
-        break;
-      case 3:
-        targetScreen = EmploymentScreen();
-        break;
-      case 4:
-        targetScreen = AchievementsScreen();
-        break;
-      case 5:
-        targetScreen = GeneralDetails();
-        break;
-      case 6:
-        targetScreen = Trust();
-        break;
-      case 7:
-        targetScreen = const ActivitiesScreen();
-        break;
-      case 8:
-        targetScreen = ChangeMukhiyaScreen(); // ✅ NEW
-        break;
-      default:
-        return;
+      case 0: targetScreen = FamilyScreen(); break;
+      case 1: targetScreen = const AddressScreen(); break;
+      case 2: targetScreen = Education(); break;
+      case 3: targetScreen = EmploymentScreen(); break;
+      case 4: targetScreen = AchievementsScreen(); break;
+      case 5: targetScreen = GeneralDetails(); break;
+      case 6: targetScreen = Trust(); break;
+      case 7: targetScreen = const ActivitiesScreen(); break;
+      case 8: targetScreen = ChangeMukhiyaScreen(); break;
+      default: return;
     }
-
     Navigator.push(context, MaterialPageRoute(builder: (_) => targetScreen));
-  }
-
-  Widget buildCard(String title, IconData icon, int index) {
-    return GestureDetector(
-      onTap: () => navigateTo(index),
-      child: Container(
-        width: (MediaQuery.of(context).size.width / 2) - 24,
-        height: 90,
-        margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.deepPurple.shade100),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.deepPurple.withOpacity(0.3),
-              offset: const Offset(5, 5),
-              blurRadius: 10,
-            ),
-            BoxShadow(
-              color: Colors.white.withOpacity(0.8),
-              offset: const Offset(-3, -3),
-              blurRadius: 6,
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Expanded(
-              child: Text(
-                title,
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.deepPurple.shade700,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            Icon(
-              icon,
-              size: 32,
-              color: Colors.deepPurple.shade700,
-            ),
-          ],
-        ),
-      ),
-    );
   }
 
   @override
   Widget build(BuildContext context) {
+
+    final items = <_DashItem>[
+      _DashItem("सामान्य विवरण", Icons.person, 5),
+      _DashItem("परिवार", Icons.family_restroom, 0),
+      _DashItem("पता", Icons.location_on, 1),
+      _DashItem("शिक्षा", Icons.school, 2),
+      _DashItem("पेशा", Icons.work, 3),
+      _DashItem("उपलब्धियाँ", Icons.emoji_events, 3),
+      _DashItem("न्यास-ट्रस्ट", Icons.home_work, 6),
+      _DashItem("सदस्यता", Icons.badge, 7),
+      if (isHeadOfFamily) _DashItem("मुखिया बदलो", Icons.switch_account, 8),
+    ];
+
     return BaseScaffold(
       selectedIndex: -1,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const SizedBox(height: 10),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(14),
-                  child: AspectRatio(
-                    aspectRatio: 16 / 9,
-                    child: Image.asset(
-                      'assets/images/Global-Card.jpg',
-                      width: double.infinity,
-                      fit: BoxFit.cover,
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Colors.grey.shade50, Colors.white],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ),
+        ),
+        child: SafeArea(
+          child: CustomScrollView(
+            slivers: [
+              // Banner
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 16, 12, 16),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: AspectRatio(
+                      aspectRatio: 16 / 9,
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          Image.asset(
+                            'assets/images/Global-Card.jpg',
+                            fit: BoxFit.cover,
+                          ),
+                          Container(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  Colors.black.withOpacity(0.05),
+                                  Colors.black.withOpacity(0.35)
+                                ],
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                              ),
+                            ),
+                          ),
+                          Positioned(
+                            left: 14,
+                            right: 14,
+                            bottom: 12,
+                            child: Row(
+                              children: [
+                                Icon(Icons.shield_moon,
+                                    color: Colors.white.withOpacity(0.95)),
+                                const SizedBox(width: 8),
+                                Text(
+                                  "MRM Profile Center",
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 16,
+                                    shadows: [
+                                      Shadow(
+                                          color: Colors.black.withOpacity(0.3),
+                                          blurRadius: 6,
+                                          offset: const Offset(0, 2)),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
-                const SizedBox(height: 20),
-                GridView.count(
-                  crossAxisCount: 2,
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  childAspectRatio: 2.8,
-                  children: [
-                    buildCard("सामान्य विवरण", Icons.person, 5),
-                    buildCard("परिवार", Icons.family_restroom, 0),
-                    buildCard("पता", Icons.location_on, 1),
-                    buildCard("शिक्षा", Icons.school, 2),
-                    buildCard("पेशा", Icons.work, 3),
-                    buildCard("उपलब्धियाँ", Icons.emoji_events, 4),
-                    buildCard("न्यास-ट्रस्ट", Icons.home_work, 6),
-                    buildCard("सदस्यता", Icons.badge, 7),
-                    if (isHeadOfFamily)
-                      buildCard("मुखिया बदलो", Icons.switch_account, 8),
-                  ],
+              ),
+
+              // Grid title
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  child: Row(
+                    children: [
+                      
+                      const Spacer(),
+                  
+
+                    ],
+                  ),
                 ),
+              ),
+
+              // Grid
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(12, 4, 12, 20),
+                sliver: SliverGrid(
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    mainAxisSpacing: 14,
+                    crossAxisSpacing: 14,
+                    childAspectRatio: 2.7,
+                  ),
+                  delegate: SliverChildBuilderDelegate(
+                    (context, i) => _DashCard(
+                      title: items[i].title,
+                      icon: items[i].icon,
+                      onTap: () => navigateTo(items[i].index),
+                    ),
+                    childCount: items.length,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DashCard extends StatefulWidget {
+  const _DashCard({required this.title, required this.icon, required this.onTap});
+  final String title;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  State<_DashCard> createState() => _DashCardState();
+}
+
+class _DashCardState extends State<_DashCard> {
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedScale(
+      duration: const Duration(milliseconds: 120),
+      scale: _pressed ? 0.98 : 1.0,
+      child: Material(
+        color: const Color.fromARGB(255, 255, 255, 255),
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: const Color.fromARGB(255, 4, 18, 97)),
+        ),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: widget.onTap,
+          onHighlightChanged: (v) => setState(() => _pressed = v),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            child: Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: const Color.fromARGB(255, 227, 230, 253),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color.fromARGB(255, 13, 16, 179)),
+                  ),
+                  child: Icon(widget.icon, color: const Color.fromARGB(255, 9, 11, 151)),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    widget.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: const Color.fromARGB(255, 8, 17, 138),
+                      fontWeight: FontWeight.w800,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Icon(Icons.chevron_right, color: const Color.fromARGB(255, 9, 7, 139)),
               ],
             ),
           ),
@@ -189,4 +248,11 @@ class _MrmScreenState extends State<MrmScreen> {
       ),
     );
   }
+}
+
+class _DashItem {
+  final String title;
+  final IconData icon;
+  final int index;
+  _DashItem(this.title, this.icon, this.index);
 }
