@@ -29,8 +29,8 @@ android {
         applicationId = "com.sabsjs.laravel_auth_flutter"
         minSdk = 29
         targetSdk = flutter.targetSdkVersion
-        versionCode = 5
-        versionName = "1.5.0"
+        versionCode = 8
+        versionName = "1.8.0"
         // multiDexEnabled = true
     }
 

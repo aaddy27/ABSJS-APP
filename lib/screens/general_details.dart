@@ -1,8 +1,18 @@
-import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
+// general_details.dart
 import 'dart:convert';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
+
+// BaseScaffold: adjust relative path if your project places it elsewhere.
+import 'base_scaffold.dart';
+
+// Step widgets (placed under lib/screens/general_details/)
+import 'general_details/shiksha.dart';
+import 'general_details/address.dart';
+import 'general_details/other.dart';
 
 // -------------------- Models --------------------
 
@@ -46,6 +56,14 @@ class Relation {
       relation: (json['relation'] ?? '').toString(),
     );
   }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is Relation && runtimeType == other.runtimeType && id == other.id;
+
+  @override
+  int get hashCode => id.hashCode;
 }
 
 class Country {
@@ -60,6 +78,14 @@ class Country {
       iso2: (json['iso2'] ?? '').toString(),
     );
   }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is Country && runtimeType == other.runtimeType && iso2 == other.iso2;
+
+  @override
+  int get hashCode => iso2.hashCode;
 }
 
 class StateModel {
@@ -105,31 +131,8 @@ void _toast(BuildContext context, String msg, {Color? color}) {
   );
 }
 
-Widget _sectionCard({required IconData icon, required String title, required Widget child, String? subtitle}) {
-  return Card(
-    elevation: 0,
-    margin: const EdgeInsets.only(bottom: 16),
-    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-    child: Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          CircleAvatar(radius: 16, child: Icon(icon, size: 18)),
-          const SizedBox(width: 10),
-          Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-        ]),
-        if (subtitle != null) ...[
-          const SizedBox(height: 6),
-          Text(subtitle, style: TextStyle(color: Colors.grey[600], fontSize: 12)),
-        ],
-        const SizedBox(height: 14),
-        child,
-      ]),
-    ),
-  );
-}
-
 // -------------------- Screen --------------------
+
 class GeneralDetails extends StatefulWidget {
   const GeneralDetails({super.key});
 
@@ -187,7 +190,7 @@ class _GeneralDetailsState extends State<GeneralDetails> {
       selectedReligion;
   DateTime? selectedDOB;
 
-  // Master lists
+  // Master lists (jobTypes mutable, so not final)
   final List<String> genders = ['पुरुष', 'महिला'];
   final List<String> educations = [
     "Less than SSC","SSC","HSC","CA","Doctor","Engineer","Software Engineer","LLB","MBA","PHD","Graduate","Post Graduate","Professional Degree","Other"
@@ -195,11 +198,15 @@ class _GeneralDetailsState extends State<GeneralDetails> {
   final List<String> professions = [
     'Teacher','Engineer','Doctor','Housewife','Business','Farmer','CA','Advocate','Self Employed','Other'
   ];
-  final List<String> jobTypes = ['घर', 'व्यवसाये', 'Business', 'Other'];
+  List<String> jobTypes = ['घर', 'व्यवसाये', 'Business', 'Other'];
   final List<String> whatsappStatus = ['हाँ', 'नहीं'];
   final List<String> religions = ['Sadhumargi', 'Jain', 'Other'];
 
   final _formKeys = [GlobalKey<FormState>(), GlobalKey<FormState>(), GlobalKey<FormState>(), GlobalKey<FormState>()];
+
+  // Networking: single reusable client
+  final http.Client _httpClient = http.Client();
+  static const int _cacheTtlSeconds = 60 * 60 * 24; // 24 hours
 
   @override
   void initState() {
@@ -216,6 +223,7 @@ class _GeneralDetailsState extends State<GeneralDetails> {
 
   @override
   void dispose() {
+    _httpClient.close();
     for (final c in [
       firstNameController,lastNameController,guardianNameController,mobileController,whatsappNumberController,
       alternateNumberController,emailController,adharNameController,adharFatherNameController,adharController,
@@ -228,6 +236,7 @@ class _GeneralDetailsState extends State<GeneralDetails> {
   Future<void> _initialize() async {
     setState(() => _isLoading = true);
 
+    // Kick off fetches in parallel
     await Future.wait([fetchCountries(), fetchRelations()]);
 
     final prefs = await SharedPreferences.getInstance();
@@ -252,14 +261,19 @@ class _GeneralDetailsState extends State<GeneralDetails> {
     setState(() => _isLoading = false);
   }
 
+  // Background JSON parse helper
+  Future<dynamic> _parseJsonInBackground(String body) {
+    return compute(jsonDecode, body);
+  }
+
   // -------------------- API --------------------
 
   Future<void> fetchFamilyMembers(String familyId, String headMemberId) async {
     try {
       final url = Uri.parse('https://mrmapi.sadhumargi.in/api/family-members/$familyId');
-      final response = await http.get(url, headers: {'member_id': headMemberId});
+      final response = await _httpClient.get(url, headers: {'member_id': headMemberId}).timeout(const Duration(seconds: 10));
       if (response.statusCode == 200) {
-        final Map<String, dynamic> responseData = jsonDecode(response.body);
+        final responseData = await _parseJsonInBackground(response.body) as Map<String, dynamic>;
         final list = <Map<String, dynamic>>[];
         final headData = responseData['head'];
         if (headData is Map<String, dynamic>) list.add(headData);
@@ -280,9 +294,18 @@ class _GeneralDetailsState extends State<GeneralDetails> {
     setState(() => _isLoading = true);
     try {
       final url = Uri.parse('https://mrmapi.sadhumargi.in/api/member/$memberId');
-      final response = await http.get(url);
+      final response = await _httpClient.get(url).timeout(const Duration(seconds: 10));
       if (response.statusCode == 200) {
-        final map = jsonDecode(response.body);
+        // DEBUG: show raw response to help map keys
+        debugPrint('--- fetchMemberData response for $memberId ---');
+        debugPrint('Status: ${response.statusCode}');
+        debugPrint('Raw body: ${response.body}');
+
+        final map = await _parseJsonInBackground(response.body) as Map<String, dynamic>;
+        // DEBUG: print parsed keys and some important fields
+        debugPrint('Parsed keys: ${map.keys.toList()}');
+        debugPrint('first_name: ${map['first_name']}, origin_city: ${map['origin_city']}, address_type: ${map['address_type']}');
+
         await _populateForm(map);
       } else {
         _toast(context, "सदस्य डेटा लोड विफल: ${response.statusCode}", color: Colors.red);
@@ -297,29 +320,144 @@ class _GeneralDetailsState extends State<GeneralDetails> {
 
   Future<void> fetchCountries() async {
     try {
-      final response = await http.get(
-        Uri.parse('https://api.countrystatecity.in/v1/countries'),
-        headers: {'X-CSCAPI-KEY': 'S2dBYnJldWtmRFM4U2VUdG9Fd0hiRXp2RjhpTm81YlhVVThiWEdiTA=='},
-      );
-      if (response.statusCode == 200) {
-        final List data = jsonDecode(response.body);
+      final prefs = await SharedPreferences.getInstance();
+      final cached = prefs.getString('cache_countries');
+      final ts = prefs.getInt('cache_countries_ts') ?? 0;
+      final now = DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000;
+
+      // If cached and not expired -> load from cache (deduped), then refresh in background
+      if (cached != null && (now - ts) < _cacheTtlSeconds) {
+        final List data = jsonDecode(cached);
         if (!mounted) return;
-        setState(() => countryList = data.map((e) => Country.fromJson(e)).toList());
+        // dedupe by iso2 while preserving order
+        final seen = <String>{};
+        final deduped = <Country>[];
+        for (final e in data) {
+          final c = Country.fromJson(Map<String, dynamic>.from(e));
+          if (!seen.contains(c.iso2)) {
+            seen.add(c.iso2);
+            deduped.add(c);
+          }
+        }
+        setState(() => countryList = deduped);
+        // refresh in background (non-blocking)
+        _refreshCountriesInBackground();
+        return;
+      }
+
+      final uri = Uri.parse('https://api.countrystatecity.in/v1/countries');
+      final response = await _httpClient
+          .get(uri, headers: {'X-CSCAPI-KEY': 'S2dBYnJldWtmRFM4U2VUdG9Fd0hiRXp2RjhpTm81YlhVVThiWEdiTA=='})
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final parsed = await _parseJsonInBackground(response.body);
+        final rawList = List.from(parsed);
+
+        // dedupe by iso2 while preserving order
+        final seen = <String>{};
+        final deduped = <Country>[];
+        for (final e in rawList) {
+          final c = Country.fromJson(Map<String, dynamic>.from(e));
+          if (!seen.contains(c.iso2)) {
+            seen.add(c.iso2);
+            deduped.add(c);
+          }
+        }
+
+        if (!mounted) return;
+        setState(() => countryList = deduped);
+
+        // cache original raw list and ts
+        final prefs2 = await SharedPreferences.getInstance();
+        prefs2.setString('cache_countries', jsonEncode(rawList));
+        prefs2.setInt('cache_countries_ts', now);
       } else {
-        _toast(context, 'देश सूची लोड नहीं हो सकी', color: Colors.red);
+        _toast(context, 'देश सूची लोड नहीं हो सकी: ${response.statusCode}', color: Colors.red);
       }
     } catch (e) {
       _toast(context, 'देश सूची में नेटवर्क समस्या', color: Colors.red);
     }
   }
 
+  Future<void> _refreshCountriesInBackground() async {
+    try {
+      final uri = Uri.parse('https://api.countrystatecity.in/v1/countries');
+      final response = await _httpClient
+          .get(uri, headers: {'X-CSCAPI-KEY': 'S2dBYnJldWtmRFM4U2VUdG9Fd0hiRXp2RjhpTm81YlhVVThiWEdiTA=='})
+          .timeout(const Duration(seconds: 10));
+      if (response.statusCode == 200) {
+        final parsed = await _parseJsonInBackground(response.body);
+        final rawList = List.from(parsed);
+
+        // update cache
+        final prefs = await SharedPreferences.getInstance();
+        final now = DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000;
+        prefs.setString('cache_countries', jsonEncode(rawList));
+        prefs.setInt('cache_countries_ts', now);
+
+        // dedupe and set state
+        final seen = <String>{};
+        final deduped = <Country>[];
+        for (final e in rawList) {
+          final c = Country.fromJson(Map<String, dynamic>.from(e));
+          if (!seen.contains(c.iso2)) {
+            seen.add(c.iso2);
+            deduped.add(c);
+          }
+        }
+        if (!mounted) return;
+        setState(() => countryList = deduped);
+      }
+    } catch (_) {
+      // ignore silently - background refresh
+    }
+  }
+
   Future<void> fetchRelations() async {
     try {
-      final response = await http.get(Uri.parse('https://mrmapi.sadhumargi.in/api/relations'));
-      if (response.statusCode == 200) {
-        final List data = jsonDecode(response.body);
+      final prefs = await SharedPreferences.getInstance();
+      final cached = prefs.getString('cache_relations');
+      final ts = prefs.getInt('cache_relations_ts') ?? 0;
+      final now = DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000;
+
+      if (cached != null && (now - ts) < _cacheTtlSeconds) {
+        final List data = jsonDecode(cached);
         if (!mounted) return;
-        setState(() => relationList = data.map((e) => Relation.fromJson(e)).toList());
+        // dedupe by id while preserving order
+        final seen = <int>{};
+        final deduped = <Relation>[];
+        for (final e in data) {
+          final r = Relation.fromJson(Map<String, dynamic>.from(e));
+          if (!seen.contains(r.id)) {
+            seen.add(r.id);
+            deduped.add(r);
+          }
+        }
+        setState(() => relationList = deduped);
+        _refreshRelationsInBackground();
+        return;
+      }
+
+      final uri = Uri.parse('https://mrmapi.sadhumargi.in/api/relations');
+      final response = await _httpClient.get(uri).timeout(const Duration(seconds: 10));
+      if (response.statusCode == 200) {
+        final parsed = await _parseJsonInBackground(response.body);
+        final list = List.from(parsed);
+        // dedupe
+        final seen = <int>{};
+        final deduped = <Relation>[];
+        for (final e in list) {
+          final r = Relation.fromJson(Map<String, dynamic>.from(e));
+          if (!seen.contains(r.id)) {
+            seen.add(r.id);
+            deduped.add(r);
+          }
+        }
+        if (!mounted) return;
+        setState(() => relationList = deduped);
+        prefs.setString('cache_relations', jsonEncode(list));
+        prefs.setInt('cache_relations_ts', now);
       } else {
         _toast(context, "रिश्ते लोड नहीं हो सके: ${response.statusCode}", color: Colors.red);
       }
@@ -328,14 +466,44 @@ class _GeneralDetailsState extends State<GeneralDetails> {
     }
   }
 
+  Future<void> _refreshRelationsInBackground() async {
+    try {
+      final uri = Uri.parse('https://mrmapi.sadhumargi.in/api/relations');
+      final response = await _httpClient.get(uri).timeout(const Duration(seconds: 10));
+      if (response.statusCode == 200) {
+        final parsed = await _parseJsonInBackground(response.body);
+        final list = List.from(parsed);
+        final prefs = await SharedPreferences.getInstance();
+        final now = DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000;
+        prefs.setString('cache_relations', jsonEncode(list));
+        prefs.setInt('cache_relations_ts', now);
+        // dedupe and set state
+        final seen = <int>{};
+        final deduped = <Relation>[];
+        for (final e in list) {
+          final r = Relation.fromJson(Map<String, dynamic>.from(e));
+          if (!seen.contains(r.id)) {
+            seen.add(r.id);
+            deduped.add(r);
+          }
+        }
+        if (!mounted) return;
+        setState(() => relationList = deduped);
+      }
+    } catch (_) {}
+  }
+
   Future<void> fetchStates(String iso2) async {
     try {
-      final response = await http.get(
-        Uri.parse('https://api.countrystatecity.in/v1/countries/$iso2/states'),
-        headers: {'X-CSCAPI-KEY': 'S2dBYnJldWtmRFM4U2VUdG9Fd0hiRXp2RjhpTm81YlhVVThiWEdiTA=='},
-      );
+      final response = await _httpClient
+          .get(
+            Uri.parse('https://api.countrystatecity.in/v1/countries/$iso2/states'),
+            headers: {'X-CSCAPI-KEY': 'S2dBYnJldWtmRFM4U2VUdG9Fd0hiRXp2RjhpTm81YlhVVThiWEdiTA=='},
+          )
+          .timeout(const Duration(seconds: 10));
       if (response.statusCode == 200) {
-        final List data = jsonDecode(response.body);
+        final parsed = await _parseJsonInBackground(response.body);
+        final List data = List.from(parsed);
         if (!mounted) return;
         setState(() => stateList = data.map((e) => StateModel.fromJson(e)).toList());
       } else {
@@ -357,6 +525,9 @@ class _GeneralDetailsState extends State<GeneralDetails> {
         orElse: () => Relation(id: 0, relationUtf8: '', relation: ''),
       );
     }
+
+    // DEBUG: show incoming keys briefly
+    debugPrint('--- _populateForm incoming keys: ${data.keys.toList()}');
 
     setState(() {
       firstNameController.text = (data['first_name'] ?? '').toString();
@@ -381,8 +552,9 @@ class _GeneralDetailsState extends State<GeneralDetails> {
         TextEditingValue(text: aadhaarRaw),
       ).text;
 
-      originCityController.text = (data['origin_city'] ?? '').toString();
-      originStateController.text = (data['origin_state'] ?? '').toString();
+      // origin fields
+      originCityController.text = (data['origin_city'] ?? data['originCity'] ?? '').toString();
+      originStateController.text = (data['origin_state'] ?? data['originState'] ?? '').toString();
 
       address1Controller.text = (data['address'] ?? '').toString();
       address2Controller.text = (data['address2'] ?? '').toString();
@@ -395,11 +567,34 @@ class _GeneralDetailsState extends State<GeneralDetails> {
       selectedRelationModel = (matchedRelation != null && matchedRelation.id != 0) ? matchedRelation : null;
       selectedEducation = educations.contains(data['education']) ? data['education'] : null;
       selectedProfession = professions.contains(data['occupation']) ? data['occupation'] : null;
-      selectedJobType = jobTypes.contains(data['address_type']) ? data['address_type'] : null;
+      // removed old direct assignment for selectedJobType - handled below (outside setState)
       selectedReligion = religions.contains(data['rel_faith']) ? data['rel_faith'] : null;
       selectedWhatsApp = ((data['whatsapp_number'] ?? '').toString().isNotEmpty) ? 'हाँ' : 'नहीं';
       selectedDOB = data['birth_day'] != null ? DateTime.tryParse(data['birth_day'].toString()) : null;
     });
+
+    // handle address_type (map API -> local display, ensure dropdown contains it)
+    try {
+      final apiAddrType = (data['address_type'] ?? data['addressType'] ?? '').toString();
+      debugPrint('API provided address_type: $apiAddrType');
+      if (apiAddrType.isNotEmpty) {
+        final local = _apiToLocalAddressType(apiAddrType);
+        if (!jobTypes.contains(local)) {
+          setState(() {
+            jobTypes.insert(0, local);
+            selectedJobType = local;
+          });
+        } else {
+          setState(() {
+            selectedJobType = local;
+          });
+        }
+      } else {
+        // if API didn't provide, keep existing selectedJobType as-is (or null)
+      }
+    } catch (e) {
+      debugPrint('Error handling address_type in _populateForm: $e');
+    }
 
     if (countryList.isNotEmpty && (data['country'] ?? '').toString().isNotEmpty) {
       Country? foundCountry;
@@ -429,12 +624,47 @@ class _GeneralDetailsState extends State<GeneralDetails> {
 
   // -------------------- Submit --------------------
 
+  // Helper: map localized dropdown value -> API value
+  String? _localToApiAddressType(String? local) {
+    if (local == null) return null;
+    switch (local) {
+      case 'घर':
+      case 'Residential':
+        return 'Residential';
+      case 'व्यवसाये':
+      case 'Business':
+        return 'Business';
+      case 'Other':
+      case 'अन्य':
+        return 'Other';
+      default:
+        return local;
+    }
+  }
+
+  // Helper: map API value -> local display
+  String _apiToLocalAddressType(String api) {
+    switch (api) {
+      case 'Residential':
+        return 'घर';
+      case 'Business':
+        return 'व्यवसाये';
+      case 'Other':
+        return 'Other';
+      default:
+        return api;
+    }
+  }
+
   Future<void> updateMemberDetails() async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token') ?? '';
     final memberIdToUpdate = _isHeadOfFamily ? _selectedFamilyMember?.memberId : _loggedInMemberId;
     if (token.isEmpty || memberIdToUpdate == null || memberIdToUpdate.isEmpty) {
-      setState(() { _bannerMsg = '🔑 सदस्य आईडी या लॉगिन टोकन गायब है।'; _bannerColor = Colors.red; });
+      setState(() {
+        _bannerMsg = '🔑 सदस्य आईडी या लॉगिन टोकन गायब है।';
+        _bannerColor = Colors.red;
+      });
       return;
     }
 
@@ -481,7 +711,8 @@ class _GeneralDetailsState extends State<GeneralDetails> {
       "adhar2": a2.isEmpty ? null : a2,
       "adhar3": a3.isEmpty ? null : a3,
       "religion": selectedReligion,
-      "address_type": selectedJobType,
+      // send API-friendly address_type
+      "address_type": _localToApiAddressType(selectedJobType),
       "address": address1Controller.text.isEmpty ? null : address1Controller.text,
       "address2": address2Controller.text.isEmpty ? null : address2Controller.text,
       "post": postController.text.isEmpty ? null : postController.text,
@@ -489,26 +720,89 @@ class _GeneralDetailsState extends State<GeneralDetails> {
       "district": districtController.text.isEmpty ? null : districtController.text,
     };
 
+    // DEBUG: print request body (remove sensitive fields as needed)
+    debugPrint('--- updateMemberDetails request for member: $memberIdToUpdate ---');
+    debugPrint(jsonEncode(body));
+
     setState(() => _isSaving = true);
     try {
       final url = Uri.parse('https://mrmapi.sadhumargi.in/api/member/$memberIdToUpdate/update');
-      final response = await http.post(
+      debugPrint('POST $url');
+
+      final response = await _httpClient.post(
         url,
         headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $token'},
         body: jsonEncode(body),
-      );
+      ).timeout(const Duration(seconds: 20));
+
+      debugPrint('Response status: ${response.statusCode}');
+      debugPrint('Response body: ${response.body}');
+
+      dynamic parsed;
+      try {
+        parsed = jsonDecode(response.body);
+      } catch (_) {
+        parsed = null;
+      }
+
       if (response.statusCode == 200) {
-        final res = jsonDecode(response.body);
-        setState(() { _bannerMsg = res['message'] ?? '✅ सफलतापूर्वक अपडेट किया गया'; _bannerColor = Colors.green; });
-        _toast(context, _bannerMsg!, color: Colors.green);
+        final message = parsed is Map && parsed['message'] != null ? parsed['message'].toString() : 'सर्वर ने 200 भेजा।';
+        final successFlag = parsed is Map && (parsed['success'] == true || parsed['status'] == 'success');
+
+        if (successFlag || parsed == null) {
+          setState(() {
+            _bannerMsg = message;
+            _bannerColor = Colors.green;
+          });
+          _toast(context, _bannerMsg!, color: Colors.green);
+
+          // REFRESH: fetch updated data from server to reflect stored values
+          await fetchMemberData(memberIdToUpdate);
+        } else {
+          setState(() {
+            _bannerMsg = message;
+            _bannerColor = Colors.orange;
+          });
+          _toast(context, _bannerMsg!, color: Colors.orange);
+        }
+      } else if (response.statusCode == 422 || response.statusCode == 400) {
+        String msg = 'वैलिडेशन त्रुटि: ${response.statusCode}';
+        if (parsed is Map && parsed['errors'] != null) {
+          msg = parsed['message'] ?? parsed['errors'].toString();
+        } else if (parsed is Map && parsed['message'] != null) {
+          msg = parsed['message'];
+        } else {
+          msg = response.body;
+        }
+        setState(() {
+          _bannerMsg = '❌ $msg';
+          _bannerColor = Colors.red;
+        });
+        _toast(context, _bannerMsg!, color: Colors.red);
+      } else if (response.statusCode == 401 || response.statusCode == 403) {
+        setState(() {
+          _bannerMsg = 'प्राधिकरण समस्या: कृपया लॉगिन पुनः करें। (${response.statusCode})';
+          _bannerColor = Colors.red;
+        });
+        _toast(context, _bannerMsg!, color: Colors.red);
       } else {
-        setState(() { _bannerMsg = '❌ सर्वर से त्रुटि: ${response.statusCode}'; _bannerColor = Colors.red; });
+        String msg = 'सर्वर त्रुटि: ${response.statusCode}';
+        if (parsed is Map && parsed['message'] != null) msg = parsed['message'];
+        setState(() {
+          _bannerMsg = '❌ $msg';
+          _bannerColor = Colors.red;
+        });
         _toast(context, _bannerMsg!, color: Colors.red);
       }
-    } catch (e) {
-      setState(() { _bannerMsg = '❌ सहेजने में त्रुटि हुई'; _bannerColor = Colors.red; });
+    } catch (e, st) {
+      debugPrint('Exception in updateMemberDetails: $e\n$st');
+      setState(() {
+        _bannerMsg = '❌ सहेजने में त्रुटि हुई: $e';
+        _bannerColor = Colors.red;
+      });
       _toast(context, _bannerMsg!, color: Colors.red);
     } finally {
+      if (!mounted) return;
       setState(() => _isSaving = false);
     }
   }
@@ -545,11 +839,11 @@ class _GeneralDetailsState extends State<GeneralDetails> {
     );
   }
 
-  // Validators
-  String? _req(String? v) => (v == null || v.trim().isEmpty) ? 'आवश्यक' : null;
+  // Validators - optional (none required)
+  String? _req(String? v) => null;
   String? _mobile10(String? v) {
     final s = (v ?? '').replaceAll(RegExp(r'\D'), '');
-    if (s.isEmpty) return 'मोबाइल आवश्यक';
+    if (s.isEmpty) return null; // allow empty
     if (s.length != 10) return '10 अंकों का मोबाइल';
     return null;
   }
@@ -571,21 +865,117 @@ class _GeneralDetailsState extends State<GeneralDetails> {
     return null;
   }
 
-  // Steps
+  // Steps now use imported widgets for modularity
+  List<Step> _steps() => [
+        Step(
+          title: const Text('सामान्य'),
+          isActive: _currentStep >= 0,
+          state: _currentStep > 0 ? StepState.complete : StepState.indexed,
+          content: _stepGeneral(),
+        ),
+        Step(
+          title: const Text('शिक्षा'),
+          isActive: _currentStep >= 1,
+          state: _currentStep > 1 ? StepState.complete : StepState.indexed,
+          content: ShikshaStep(
+            formKey: _formKeys[1],
+            selectedDOB: selectedDOB,
+            onDobChanged: (d) => setState(() => selectedDOB = d),
+            educations: educations,
+            selectedEducation: selectedEducation,
+            onEducationChanged: (v) => setState(() => selectedEducation = v),
+            professions: professions,
+            selectedProfession: selectedProfession,
+            onProfessionChanged: (v) => setState(() => selectedProfession = v),
+          ),
+        ),
+        Step(
+          title: const Text('पता'),
+          isActive: _currentStep >= 2,
+          state: _currentStep > 2 ? StepState.complete : StepState.indexed,
+          content: AddressStep(
+            formKey: _formKeys[2],
+            address1Controller: address1Controller,
+            address2Controller: address2Controller,
+            postController: postController,
+            cityController: cityController,
+            districtController: districtController,
+            pinCodeController: pinCodeController,
+            originCityController: originCityController,
+            originStateController: originStateController,
+            selectedJobType: selectedJobType,
+            jobTypes: jobTypes,
+            onJobTypeChanged: (v) => setState(() => selectedJobType = v),
+            countryList: countryList,
+            selectedCountryModel: selectedCountryModel,
+            stateList: stateList,
+            selectedStateModel: selectedStateModel,
+            onCountryChanged: (c) {
+              setState(() {
+                selectedCountryModel = c;
+                selectedStateModel = null;
+                stateList = [];
+              });
+              if (c != null) fetchStates(c.iso2);
+            },
+            onStateChanged: (s) => setState(() => selectedStateModel = s),
+            onPinChanged: (s) {},
+          ),
+        ),
+        Step(
+          title: const Text('अन्य'),
+          isActive: _currentStep >= 3,
+          state: _currentStep > 3 ? StepState.complete : StepState.indexed,
+          content: OtherStep(
+            formKey: _formKeys[3],
+            mobileController: mobileController,
+            alternateNumberController: alternateNumberController,
+            whatsappNumberController: whatsappNumberController,
+            emailController: emailController,
+            adharNameController: adharNameController,
+            adharFatherNameController: adharFatherNameController,
+            adharController: adharController,
+            selectedWhatsApp: selectedWhatsApp,
+            whatsappStatus: whatsappStatus,
+            onWhatsAppChanged: (v) {
+              setState(() {
+                selectedWhatsApp = v;
+                if (v == 'हाँ' && whatsappNumberController.text.isEmpty) {
+                  whatsappNumberController.text = mobileController.text;
+                } else if (v == 'नहीं') {
+                  whatsappNumberController.clear();
+                }
+              });
+            },
+            selectedReligion: selectedReligion,
+            religions: religions,
+            onReligionChanged: (v) => setState(() => selectedReligion = v),
+            onMobileChanged: (s) {
+              if (selectedWhatsApp == 'हाँ' && whatsappNumberController.text.isEmpty) {
+                whatsappNumberController.text = s ?? '';
+              }
+            },
+            mobileValidator: _mobile10,
+            aadhaarValidator: _aadhaar12,
+            emailValidator: _email,
+          ),
+        ),
+      ];
+
   Widget _stepGeneral() {
     return Form(
       key: _formKeys[0],
       autovalidateMode: AutovalidateMode.onUserInteraction,
       child: Column(children: [
-        DropdownButtonFormField<Relation>(
-          isDense: true,
-          isExpanded: true,
-          value: selectedRelationModel,
-          items: relationList.map((r) => DropdownMenuItem(value: r, child: Text("${r.relationUtf8} (${r.relation})"))).toList(),
-          onChanged: (v) => setState(() => selectedRelationModel = v),
-          validator: (v) => v == null ? 'आवश्यक' : null,
-          decoration: _dec("सदस्य का मुखिया से रिश्ता", icon: const Icon(Icons.link)),
-        ),
+       DropdownButtonFormField<Relation>(
+  isDense: true,
+  isExpanded: true,
+  value: relationList.contains(selectedRelationModel) ? selectedRelationModel : null,
+  items: relationList.map((r) => DropdownMenuItem(value: r, child: Text("${r.relationUtf8} (${r.relation})"))).toList(),
+  onChanged: (v) => setState(() => selectedRelationModel = v),
+  decoration: _dec("सदस्य का मुखिया से रिश्ता", icon: const Icon(Icons.link)),
+),
+
         const SizedBox(height: 12),
         Row(children: [
           Expanded(
@@ -623,7 +1013,6 @@ class _GeneralDetailsState extends State<GeneralDetails> {
               value: genders.contains(selectedGender) ? selectedGender : null,
               items: genders.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
               onChanged: (v) => setState(() => selectedGender = v),
-              validator: (v) => v == null ? 'आवश्यक' : null,
               decoration: _dec("लिंग", icon: const Icon(Icons.wc)),
             ),
           ),
@@ -632,351 +1021,104 @@ class _GeneralDetailsState extends State<GeneralDetails> {
     );
   }
 
-  Widget _stepEducation() {
-    return Form(
-      key: _formKeys[1],
-      autovalidateMode: AutovalidateMode.onUserInteraction,
-      child: Column(children: [
-        Row(children: [
-          Expanded(
-            child: TextFormField(
-              readOnly: true,
-              controller: TextEditingController(
-                text: selectedDOB == null ? '' : "${selectedDOB!.day}-${selectedDOB!.month}-${selectedDOB!.year}",
-              ),
-              decoration: _dec("जन्म तिथि", icon: const Icon(Icons.cake)),
-              onTap: () async {
-                final picked = await showDatePicker(
-                  context: context,
-                  initialDate: selectedDOB ?? DateTime(2000),
-                  firstDate: DateTime(1900),
-                  lastDate: DateTime.now(),
-                );
-                if (picked != null) setState(() => selectedDOB = picked);
-              },
-              validator: (_) => selectedDOB == null ? 'आवश्यक' : null,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: DropdownButtonFormField<String>(
-              isExpanded: true,
-              value: educations.contains(selectedEducation) ? selectedEducation : null,
-              items: educations.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
-              onChanged: (v) => setState(() => selectedEducation = v),
-              validator: (v) => v == null ? 'आवश्यक' : null,
-              decoration: _dec("शिक्षा", icon: const Icon(Icons.school)),
-            ),
-          ),
-        ]),
-        const SizedBox(height: 12),
-        DropdownButtonFormField<String>(
-          isExpanded: true,
-          value: professions.contains(selectedProfession) ? selectedProfession : null,
-          items: professions.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
-          onChanged: (v) => setState(() => selectedProfession = v),
-          validator: (v) => v == null ? 'आवश्यक' : null,
-          decoration: _dec("व्यवसाय", icon: const Icon(Icons.work)),
-        ),
-      ]),
-    );
-  }
-
-  Widget _stepAddress() {
-    return Form(
-      key: _formKeys[2],
-      autovalidateMode: AutovalidateMode.onUserInteraction,
-      child: Column(children: [
-        DropdownButtonFormField<String>(
-          isExpanded: true,
-          value: jobTypes.contains(selectedJobType) ? selectedJobType : null,
-          items: jobTypes.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
-          onChanged: (v) => setState(() => selectedJobType = v),
-          validator: (v) => v == null ? 'आवश्यक' : null,
-          decoration: _dec("पते का प्रकार", icon: const Icon(Icons.home_work)),
-        ),
-        const SizedBox(height: 12),
-        Row(children: [
-          Expanded(child: TextFormField(controller: address1Controller, decoration: _dec("पता 1", icon: const Icon(Icons.location_on)), validator: _req)),
-          const SizedBox(width: 12),
-          Expanded(child: TextFormField(controller: address2Controller, decoration: _dec("पता 2"))),
-        ]),
-        const SizedBox(height: 12),
-        Row(children: [
-          Expanded(child: TextFormField(controller: postController, decoration: _dec("पोस्ट"))),
-          const SizedBox(width: 12),
-          Expanded(child: TextFormField(controller: cityController, decoration: _dec("शहर"))),
-        ]),
-        const SizedBox(height: 12),
-        Row(children: [
-          Expanded(child: TextFormField(controller: districtController, decoration: _dec("जिला"))),
-          const SizedBox(width: 12),
-          Expanded(
-            child: TextFormField(
-              controller: pinCodeController,
-              decoration: _dec("पिन कोड"),
-              keyboardType: TextInputType.number,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(6)],
-              validator: _pincode6,
-            ),
-          ),
-        ]),
-        const SizedBox(height: 12),
-        DropdownButtonFormField<Country>(
-          isExpanded: true,
-          value: selectedCountryModel,
-          items: countryList.map((c) => DropdownMenuItem(value: c, child: Text(c.name))).toList(),
-          onChanged: (c) {
-            setState(() {
-              selectedCountryModel = c;
-              selectedStateModel = null;
-              stateList = [];
-            });
-            if (c != null) fetchStates(c.iso2);
-          },
-          validator: (v) => v == null ? 'आवश्यक' : null,
-          decoration: _dec('देश', icon: const Icon(Icons.flag)),
-        ),
-        const SizedBox(height: 12),
-        DropdownButtonFormField<StateModel>(
-          isExpanded: true,
-          value: selectedStateModel,
-          items: stateList.map((s) => DropdownMenuItem(value: s, child: Text(s.name))).toList(),
-          onChanged: (v) => setState(() => selectedStateModel = v),
-          validator: (v) => v == null ? 'आवश्यक' : null,
-          decoration: _dec('राज्य', icon: const Icon(Icons.map)),
-        ),
-        const SizedBox(height: 12),
-        Row(children: [
-          Expanded(child: TextFormField(controller: originCityController, decoration: _dec("मूल शहर"))),
-          const SizedBox(width: 12),
-          Expanded(child: TextFormField(controller: originStateController, decoration: _dec("मूल राज्य"))),
-        ]),
-      ]),
-    );
-  }
-
-  Widget _stepOther() {
-    return Form(
-      key: _formKeys[3],
-      autovalidateMode: AutovalidateMode.onUserInteraction,
-      child: Column(children: [
-        Row(children: [
-          Expanded(
-            child: TextFormField(
-              controller: mobileController,
-              decoration: _dec("मोबाइल", icon: const Icon(Icons.phone)).copyWith(
-                suffixIcon: mobileController.text.isEmpty
-                    ? null
-                    : IconButton(
-                        onPressed: () => setState(() => mobileController.clear()),
-                        icon: Icon(Icons.clear), // <-- no const here
-                      ),
-              ),
-              keyboardType: TextInputType.phone,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(10)],
-              validator: _mobile10,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: TextFormField(
-              controller: alternateNumberController,
-              decoration: _dec("वैकल्पिक फोन"),
-              keyboardType: TextInputType.phone,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(10)],
-            ),
-          ),
-        ]),
-        const SizedBox(height: 12),
-        Row(children: [
-          Expanded(
-            child: DropdownButtonFormField<String>(
-              isExpanded: true,
-              value: whatsappStatus.contains(selectedWhatsApp) ? selectedWhatsApp : null,
-              items: whatsappStatus.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
-              onChanged: (v) {
-                setState(() {
-                  selectedWhatsApp = v;
-                  if (v == 'हाँ' && whatsappNumberController.text.isEmpty) {
-                    whatsappNumberController.text = mobileController.text;
-                  } else if (v == 'नहीं') {
-                    whatsappNumberController.clear();
-                  }
-                });
-              },
-              validator: (v) => v == null ? 'आवश्यक' : null,
-              decoration: _dec("WhatsApp Status", icon: const Icon(Icons.chat)), // <-- use chat icon
-            ),
-          ),
-          const SizedBox(width: 12),
-          if (selectedWhatsApp == 'हाँ')
-            Expanded(
-              child: TextFormField(
-                controller: whatsappNumberController,
-                decoration: _dec("WhatsApp नंबर"),
-                keyboardType: TextInputType.phone,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(10)],
-                validator: _mobile10,
-              ),
-            ),
-        ]),
-        const SizedBox(height: 12),
-        TextFormField(
-          controller: emailController,
-          decoration: _dec("ईमेल", icon: const Icon(Icons.email)),
-          keyboardType: TextInputType.emailAddress,
-          validator: _email,
-        ),
-        const SizedBox(height: 12),
-        Row(children: [
-          Expanded(child: TextFormField(controller: adharNameController, decoration: _dec("नाम (आधार अनुसार)"))),
-          const SizedBox(width: 12),
-          Expanded(child: TextFormField(controller: adharFatherNameController, decoration: _dec("पिता का नाम (आधार अनुसार)"))),
-        ]),
-        const SizedBox(height: 12),
-        TextFormField(
-          controller: adharController,
-          decoration: _dec("आधार कार्ड नंबर", hint: "#### #### ####"),
-          keyboardType: TextInputType.number,
-          inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(12), AadhaarInputFormatter()],
-          validator: _aadhaar12,
-        ),
-        const SizedBox(height: 12),
-        DropdownButtonFormField<String>(
-          isExpanded: true,
-          value: religions.contains(selectedReligion) ? selectedReligion : null,
-          items: religions.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
-          onChanged: (v) => setState(() => selectedReligion = v),
-          validator: (v) => v == null ? 'आवश्यक' : null,
-          decoration: _dec("धार्मिक मान्यता", icon: const Icon(Icons.auto_awesome)),
-        ),
-      ]),
-    );
-  }
-
-  List<Step> _steps() => [
-        Step(title: const Text('सामान्य'), isActive: _currentStep >= 0, state: _currentStep > 0 ? StepState.complete : StepState.indexed, content: _stepGeneral()),
-        Step(title: const Text('शिक्षा'), isActive: _currentStep >= 1, state: _currentStep > 1 ? StepState.complete : StepState.indexed, content: _stepEducation()),
-        Step(title: const Text('पता'), isActive: _currentStep >= 2, state: _currentStep > 2 ? StepState.complete : StepState.indexed, content: _stepAddress()),
-        Step(title: const Text('अन्य'), isActive: _currentStep >= 3, state: _currentStep > 3 ? StepState.complete : StepState.indexed, content: _stepOther()),
-      ];
-
   bool _validateCurrentStep() {
     final key = _formKeys[_currentStep];
-    final valid = key.currentState?.validate() ?? false;
+    final valid = key.currentState?.validate() ?? true;
     if (!valid) _toast(context, "कृपया आवश्यक फ़ील्ड भरें", color: Colors.orange);
     return valid;
   }
 
   @override
   Widget build(BuildContext context) {
-    final steps = _steps();
-    return Scaffold(
-     appBar: AppBar(
-  automaticallyImplyLeading: false,
-  centerTitle: true, // center align
-  toolbarHeight: 64, // a bit taller, looks premium
-  title: const Text(
-    "सामान्य विवरण",
-    textAlign: TextAlign.center,
-    style: TextStyle(
-      fontSize: 28,          // bigger font
-      fontWeight: FontWeight.w700,
-      letterSpacing: 0.2,
-    ),
-  ),
-  backgroundColor: Colors.deepPurple,
-  foregroundColor: Colors.white,
-  // 👇 removed actions (refresh icon)
-),
-
-      body: SafeArea(
-        child: Column(
-          children: [
-            if (_bannerMsg != null)
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                decoration: BoxDecoration(
-                  color: _bannerColor.withOpacity(0.1),
-                  border: Border.all(color: _bannerColor, width: 1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(_bannerMsg!, style: TextStyle(color: _bannerColor, fontWeight: FontWeight.w600), textAlign: TextAlign.center),
+    // Build the content that previously was in Scaffold.body
+    final content = SafeArea(
+      child: Column(
+        children: [
+          if (_bannerMsg != null)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              decoration: BoxDecoration(
+                color: _bannerColor.withOpacity(0.1),
+                border: Border.all(color: _bannerColor, width: 1),
+                borderRadius: BorderRadius.circular(12),
               ),
-            if (_isHeadOfFamily)
-              Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 0), child: _familyPill()),
-            const SizedBox(height: 8),
-            Expanded(
-              child: _isLoading
-                  ? const _Skeleton()
-                  : Stepper(
-                      type: StepperType.horizontal,
-                      elevation: 0,
-                      margin: EdgeInsets.zero,
-                      currentStep: _currentStep,
-                      steps: steps,
-                      onStepTapped: (i) {
-                        if (i <= _currentStep || _validateCurrentStep()) {
-                          setState(() => _currentStep = i);
-                        }
-                      },
-                      controlsBuilder: (context, details) => const SizedBox.shrink(),
-                    ),
+              child: Text(_bannerMsg!, style: TextStyle(color: _bannerColor, fontWeight: FontWeight.w600), textAlign: TextAlign.center),
             ),
-          ],
-        ),
-      ),
-      bottomNavigationBar: SafeArea(
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface,
-            border: Border(top: BorderSide(color: Colors.grey.withOpacity(0.2))),
-          ),
-          child: Row(
-            children: [
-              if (_currentStep > 0)
-                OutlinedButton.icon(
-                  onPressed: _isSaving ? null : () => setState(() => _currentStep -= 1),
-                  icon: const Icon(Icons.arrow_back),
-                  label: const Text('Back'),
-                  style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16)),
-                ),
-              if (_currentStep > 0) const SizedBox(width: 12),
-              Expanded(
-                child: ElevatedButton.icon(
-                  icon: _currentStep == steps.length - 1
-                      ? (_isSaving ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.check))
-                      : const Icon(Icons.arrow_forward),
-                  label: Text(_currentStep == steps.length - 1 ? "सबमिट करें" : "Next"),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.deepPurple,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          if (_isHeadOfFamily)
+            Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 0), child: _familyPill()),
+          const SizedBox(height: 8),
+          Expanded(
+            child: _isLoading
+                ? const _Skeleton()
+                : Stepper(
+                    type: StepperType.horizontal,
+                    elevation: 0,
+                    margin: EdgeInsets.zero,
+                    currentStep: _currentStep,
+                    steps: _steps(),
+                    onStepTapped: (i) {
+                      if (i <= _currentStep || _validateCurrentStep()) {
+                        setState(() => _currentStep = i);
+                      }
+                    },
+                    // ← custom controls: Back / Next / Submit
+                    controlsBuilder: (BuildContext context, ControlsDetails details) {
+                      final isLast = _currentStep == _steps().length - 1;
+                      return Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                        child: Row(
+                          children: [
+                            if (_currentStep > 0)
+                              OutlinedButton.icon(
+                                onPressed: _isSaving ? null : () => setState(() => _currentStep -= 1),
+                                icon: const Icon(Icons.arrow_back),
+                                label: const Text('Back'),
+                                style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16)),
+                              ),
+                            if (_currentStep > 0) const SizedBox(width: 12),
+                            Expanded(
+                              child: ElevatedButton.icon(
+                                icon: isLast
+                                    ? (_isSaving ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.check))
+                                    : const Icon(Icons.arrow_forward),
+                                label: Text(isLast ? "सबमिट करें" : "Next"),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.deepPurple,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(vertical: 14),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                                onPressed: _isSaving
+                                    ? null
+                                    : () async {
+                                        if (!isLast) {
+                                          if (_validateCurrentStep()) setState(() => _currentStep += 1);
+                                        } else {
+                                          final allValid = _formKeys.every((k) => (k.currentState?.validate() ?? true));
+                                          if (!allValid) {
+                                            _toast(context, "कृपया सभी आवश्यक फ़ील्ड भरें", color: Colors.orange);
+                                            return;
+                                          }
+                                          await updateMemberDetails();
+                                        }
+                                      },
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
                   ),
-                  onPressed: _isSaving
-                      ? null
-                      : () async {
-                          final isLast = _currentStep == steps.length - 1;
-                          if (!isLast) {
-                            if (_validateCurrentStep()) setState(() => _currentStep += 1);
-                          } else {
-                            final allValid = _formKeys.every((k) => (k.currentState?.validate() ?? false));
-                            if (!allValid) { _toast(context, "कृपया सभी आवश्यक फ़ील्ड भरें", color: Colors.orange); return; }
-                            await updateMemberDetails();
-                          }
-                        },
-                ),
-              ),
-            ],
           ),
-        ),
+        ],
       ),
     );
+
+    // Use BaseScaffold so AppBar + BottomNav come from there.
+    // selectedIndex set to -1 (you can change to appropriate tab).
+    return BaseScaffold(selectedIndex: -1, body: content);
   }
 }
 
@@ -988,7 +1130,7 @@ class _Skeleton extends StatelessWidget {
   Widget _bar() => Container(
         height: 16,
         width: double.infinity,
-        margin: const EdgeInsets.symmetric(vertical: 8), // ✅ FIXED
+        margin: const EdgeInsets.symmetric(vertical: 8),
         decoration: BoxDecoration(
           color: Colors.grey.shade300,
           borderRadius: BorderRadius.circular(8),

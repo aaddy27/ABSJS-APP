@@ -3,6 +3,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 
+import 'base_scaffold.dart';
+
 class Trust extends StatefulWidget {
   const Trust({super.key});
 
@@ -37,6 +39,20 @@ class _TrustState extends State<Trust> with TickerProviderStateMixin {
     fetchTrustList();
   }
 
+  @override
+  void dispose() {
+    _tabController.dispose();
+    nameController.dispose();
+    yearController.dispose();
+    purposeController.dispose();
+    positionController.dispose();
+    contactController.dispose();
+    mobileController.dispose();
+    emailController.dispose();
+    websiteController.dispose();
+    super.dispose();
+  }
+
   // --- DATA & API LOGIC ---
   Future<int> getComputedMemberId() async {
     final prefs = await SharedPreferences.getInstance();
@@ -66,15 +82,19 @@ class _TrustState extends State<Trust> with TickerProviderStateMixin {
 
   Future<void> submitForm() async {
     if (!_formKey.currentState!.validate()) return;
-    
+
     setState(() => _isSubmitting = true);
     try {
       final memberId = await getComputedMemberId();
       final body = {
-        "trust_name": nameController.text, "trust_year": yearController.text,
-        "trust_purpose": purposeController.text, "trust_role": positionController.text,
-        "trust_contact_name": contactController.text, "trust_contact_number": mobileController.text,
-        "trust_email": emailController.text, "trust_website": websiteController.text,
+        "trust_name": nameController.text,
+        "trust_year": yearController.text,
+        "trust_purpose": purposeController.text,
+        "trust_role": positionController.text,
+        "trust_contact_name": contactController.text,
+        "trust_contact_number": mobileController.text,
+        "trust_email": emailController.text,
+        "trust_website": websiteController.text,
         "member_id": memberId,
       };
 
@@ -113,7 +133,7 @@ class _TrustState extends State<Trust> with TickerProviderStateMixin {
       ),
     );
     if (confirm != true) return;
-    
+
     setState(() => _isLoading = true);
     try {
       final url = 'https://mrmapi.sadhumargi.in/api/trust/$id';
@@ -127,10 +147,10 @@ class _TrustState extends State<Trust> with TickerProviderStateMixin {
     } catch (e) {
       _showSnackBar('An error occurred: $e', isError: true);
     } finally {
-       setState(() => _isLoading = false);
+      setState(() => _isLoading = false);
     }
   }
-  
+
   // --- UI LOGIC & HELPERS ---
   void loadForEdit(Map<String, dynamic> trust) {
     setState(() {
@@ -166,66 +186,95 @@ class _TrustState extends State<Trust> with TickerProviderStateMixin {
       backgroundColor: isError ? Colors.redAccent : Colors.green,
     ));
   }
-  
+
   // --- BUILD METHOD & WIDGETS ---
   @override
   Widget build(BuildContext context) {
     const primaryColor = Color(0xFF0D47A1);
 
-    return Scaffold(
-      appBar: AppBar(
-        backgroundColor: primaryColor,
-        foregroundColor: Colors.white,
-        title: const Text('चैरिटेबल ट्रस्ट/संस्थान', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
-        bottom: TabBar(
-          controller: _tabController,
-          labelColor: Colors.white,
-          unselectedLabelColor: Colors.white70,
-          indicatorColor: Colors.amberAccent,
-          tabs: const [
-            Tab(icon: Icon(Icons.add_box), text: 'ट्रस्ट जोड़ें'),
-            Tab(icon: Icon(Icons.list_alt), text: 'ट्रस्ट सूची'),
+    return BaseScaffold(
+      selectedIndex: -1, // no bottom nav highlight by default; change if needed
+      body: SafeArea(
+        child: Column(
+          children: [
+            // Local header with title + TabBar
+            Container(
+              color: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Text('चैरिटेबल ट्रस्ट/संस्थान', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: primaryColor)),
+                      const Spacer(),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  TabBar(
+                    controller: _tabController,
+                    labelColor: primaryColor,
+                    unselectedLabelColor: Colors.grey.shade600,
+                    indicatorColor: primaryColor,
+                    tabs: const [
+                      Tab(icon: Icon(Icons.add_box), text: 'ट्रस्ट जोड़ें'),
+                      Tab(icon: Icon(Icons.list_alt), text: 'ट्रस्ट सूची'),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            // Content
+            Expanded(
+              child: TabBarView(
+                controller: _tabController,
+                children: [
+                  _buildFormTab(primaryColor),
+                  _buildTrustListTab(),
+                ],
+              ),
+            ),
           ],
         ),
-      ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          _buildFormTab(primaryColor),
-          _buildTrustListTab(),
-        ],
       ),
     );
   }
 
   Widget _buildFormTab(Color primaryColor) {
-    return Form(
-      key: _formKey,
-      child: ListView(
+    return SingleChildScrollView(
+      child: Padding(
         padding: const EdgeInsets.all(16),
-        children: [
-          buildTextField(label: 'ट्रस्ट का नाम *', icon: Icons.account_balance, controller: nameController, isRequired: true),
-          buildTextField(label: 'स्थापना वर्ष', icon: Icons.calendar_today, controller: yearController, keyboardType: TextInputType.number),
-          buildTextField(label: 'उद्देश्य', icon: Icons.lightbulb_outline, controller: purposeController),
-          buildTextField(label: 'पद', icon: Icons.badge_outlined, controller: positionController),
-          buildTextField(label: 'संपर्क सूत्र', icon: Icons.person_outline, controller: contactController),
-          buildTextField(label: 'मोबाइल', icon: Icons.phone_android_outlined, controller: mobileController, keyboardType: TextInputType.phone),
-          buildTextField(label: 'ईमेल', icon: Icons.email_outlined, controller: emailController, keyboardType: TextInputType.emailAddress, isEmail: true),
-          buildTextField(label: 'वेबसाइट', icon: Icons.language_outlined, controller: websiteController),
-          const SizedBox(height: 24),
-          ElevatedButton.icon(
-            onPressed: _isSubmitting ? null : submitForm,
-            icon: _isSubmitting ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3)) : Icon(editId != null ? Icons.save_as_outlined : Icons.add_task_outlined),
-            label: Text(editId != null ? 'अपडेट करें' : 'प्रोफाइल में जोड़ें'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: primaryColor,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            children: [
+              buildTextField(label: 'ट्रस्ट का नाम *', icon: Icons.account_balance, controller: nameController, isRequired: true),
+              buildTextField(label: 'स्थापना वर्ष', icon: Icons.calendar_today, controller: yearController, keyboardType: TextInputType.number),
+              buildTextField(label: 'उद्देश्य', icon: Icons.lightbulb_outline, controller: purposeController),
+              buildTextField(label: 'पद', icon: Icons.badge_outlined, controller: positionController),
+              buildTextField(label: 'संपर्क सूत्र', icon: Icons.person_outline, controller: contactController),
+              buildTextField(label: 'मोबाइल', icon: Icons.phone_android_outlined, controller: mobileController, keyboardType: TextInputType.phone),
+              buildTextField(label: 'ईमेल', icon: Icons.email_outlined, controller: emailController, keyboardType: TextInputType.emailAddress, isEmail: true),
+              buildTextField(label: 'वेबसाइट', icon: Icons.language_outlined, controller: websiteController),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _isSubmitting ? null : submitForm,
+                  icon: _isSubmitting ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3)) : Icon(editId != null ? Icons.save_as_outlined : Icons.add_task_outlined),
+                  label: Text(editId != null ? 'अपडेट करें' : 'प्रोफाइल में जोड़ें'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: primaryColor,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -237,55 +286,69 @@ class _TrustState extends State<Trust> with TickerProviderStateMixin {
     if (trustList.isEmpty) {
       return _buildEmptyState();
     }
-    return ListView.builder(
-      padding: const EdgeInsets.all(12),
-      itemCount: trustList.length,
-      itemBuilder: (context, index) {
-        final trust = trustList[index];
-        return Card(
-          elevation: 4,
-          margin: const EdgeInsets.symmetric(vertical: 8),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          child: Column(
-            children: [
-              ListTile(
-                leading: CircleAvatar(backgroundColor: Colors.blue.shade100, child: const Icon(Icons.account_balance, color: Color(0xFF0D47A1))),
-                title: Text(trust['trust_name'] ?? 'N/A', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                subtitle: Text('स्थापना वर्ष: ${trust['trust_year'] ?? 'N/A'}'),
-              ),
-              const Divider(height: 1, indent: 16, endIndent: 16),
-              Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  children: [
-                    _buildInfoRow(Icons.lightbulb_outline, 'उद्देश्य', trust['trust_purpose']),
-                    _buildInfoRow(Icons.badge_outlined, 'पद', trust['trust_role']),
-                    _buildInfoRow(Icons.person_outline, 'संपर्क सूत्र', trust['trust_contact_name']),
-                    _buildInfoRow(Icons.phone_android_outlined, 'मोबाइल', trust['trust_contact_number']),
-                    _buildInfoRow(Icons.email_outlined, 'ईमेल', trust['trust_email']),
-                  ],
+    return RefreshIndicator(
+      onRefresh: fetchTrustList,
+      child: ListView.builder(
+        padding: const EdgeInsets.all(12),
+        itemCount: trustList.length,
+        itemBuilder: (context, index) {
+          final trust = trustList[index];
+          return Card(
+            elevation: 4,
+            margin: const EdgeInsets.symmetric(vertical: 8),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            child: Column(
+              children: [
+                ListTile(
+                  leading: CircleAvatar(backgroundColor: Colors.blue.shade100, child: const Icon(Icons.account_balance, color: Color(0xFF0D47A1)))),
+                // Note: placing title/subtitle outside leading to avoid overflow on small screens
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 12),
+                      Text(trust['trust_name'] ?? 'N/A', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                      const SizedBox(height: 6),
+                      Text('स्थापना वर्ष: ${trust['trust_year'] ?? 'N/A'}', style: TextStyle(color: Colors.grey.shade700)),
+                      const SizedBox(height: 12),
+                    ],
+                  ),
                 ),
-              ),
-              Container(
-                 decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
-                  borderRadius: const BorderRadius.only(bottomLeft: Radius.circular(12), bottomRight: Radius.circular(12)),
+                const Divider(height: 1, indent: 16, endIndent: 16),
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    children: [
+                      _buildInfoRow(Icons.lightbulb_outline, 'उद्देश्य', trust['trust_purpose']),
+                      _buildInfoRow(Icons.badge_outlined, 'पद', trust['trust_role']),
+                      _buildInfoRow(Icons.person_outline, 'संपर्क सूत्र', trust['trust_contact_name']),
+                      _buildInfoRow(Icons.phone_android_outlined, 'मोबाइल', trust['trust_contact_number']),
+                      _buildInfoRow(Icons.email_outlined, 'ईमेल', trust['trust_email']),
+                    ],
+                  ),
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    TextButton.icon(icon: const Icon(Icons.edit, color: Colors.blueAccent), label: const Text('Edit'), onPressed: () => loadForEdit(trust)),
-                    TextButton.icon(icon: const Icon(Icons.delete, color: Colors.redAccent), label: const Text('Delete'), onPressed: () => deleteTrust(trust['id'])),
-                  ],
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    borderRadius: const BorderRadius.only(bottomLeft: Radius.circular(12), bottomRight: Radius.circular(12)),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton.icon(icon: const Icon(Icons.edit, color: Colors.blueAccent), label: const Text('Edit'), onPressed: () => loadForEdit(trust)),
+                      TextButton.icon(icon: const Icon(Icons.delete, color: Colors.redAccent), label: const Text('Delete'), onPressed: () => deleteTrust(trust['id'])),
+                    ],
+                  ),
                 ),
-              )
-            ],
-          ),
-        );
-      },
+              ],
+            ),
+          );
+        },
+      ),
     );
   }
-  
+
   // --- HELPER WIDGETS ---
   Widget buildTextField({required String label, required IconData icon, required TextEditingController controller, bool isRequired = false, bool isEmail = false, TextInputType? keyboardType}) {
     return Padding(
@@ -299,8 +362,11 @@ class _TrustState extends State<Trust> with TickerProviderStateMixin {
         },
         keyboardType: keyboardType,
         decoration: InputDecoration(
-          labelText: label, prefixIcon: Icon(icon), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-          filled: true, fillColor: Colors.grey.shade100,
+          labelText: label,
+          prefixIcon: Icon(icon),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          filled: true,
+          fillColor: Colors.grey.shade100,
         ),
       ),
     );

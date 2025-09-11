@@ -36,32 +36,58 @@ class _MrmScreenState extends State<MrmScreen> {
   }
 
   void navigateTo(int index) {
-    Widget targetScreen;
+    Widget? targetScreen;
     switch (index) {
-      case 0: targetScreen = FamilyScreen(); break;
-      case 1: targetScreen = const AddressScreen(); break;
-      case 2: targetScreen = Education(); break;
-      case 3: targetScreen = EmploymentScreen(); break;
-      case 4: targetScreen = AchievementsScreen(); break;
-      case 5: targetScreen = GeneralDetails(); break;
-      case 6: targetScreen = Trust(); break;
-      case 7: targetScreen = const ActivitiesScreen(); break;
-      case 8: targetScreen = ChangeMukhiyaScreen(); break;
-      default: return;
+      case 0:
+        targetScreen = FamilyScreen();
+        break;
+      case 1:
+        targetScreen = const AddressScreen();
+        break;
+      case 2:
+        targetScreen = Education();
+        break;
+      case 3:
+        targetScreen = EmploymentScreen();
+        break;
+      case 4:
+        targetScreen = AchievementsScreen();
+        break;
+      case 5:
+        targetScreen = GeneralDetails();
+        break;
+      case 6:
+        targetScreen = Trust();
+        break;
+      case 7:
+        targetScreen = const ActivitiesScreen();
+        break;
+      case 8:
+        targetScreen = ChangeMukhiyaScreen();
+        break;
+      default:
+        targetScreen = null;
     }
-    Navigator.push(context, MaterialPageRoute(builder: (_) => targetScreen));
+
+    if (targetScreen != null) {
+      Navigator.push(context, MaterialPageRoute(builder: (_) => targetScreen!));
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Screen not implemented for this item.')),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-
     final items = <_DashItem>[
       _DashItem("सामान्य विवरण", Icons.person, 5),
       _DashItem("परिवार", Icons.family_restroom, 0),
       _DashItem("पता", Icons.location_on, 1),
       _DashItem("शिक्षा", Icons.school, 2),
       _DashItem("पेशा", Icons.work, 3),
-      _DashItem("उपलब्धियाँ", Icons.emoji_events, 3),
+      // **FIXED**: achievements must map to index 4 (not 3)
+      _DashItem("उपलब्धियाँ", Icons.emoji_events, 4),
       _DashItem("न्यास-ट्रस्ट", Icons.home_work, 6),
       _DashItem("सदस्यता", Icons.badge, 7),
       if (isHeadOfFamily) _DashItem("मुखिया बदलो", Icons.switch_account, 8),
@@ -136,21 +162,6 @@ class _MrmScreenState extends State<MrmScreen> {
                         ],
                       ),
                     ),
-                  ),
-                ),
-              ),
-
-              // Grid title
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                  child: Row(
-                    children: [
-                      
-                      const Spacer(),
-                  
-
-                    ],
                   ),
                 ),
               ),

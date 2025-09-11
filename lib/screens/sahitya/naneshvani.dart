@@ -1,8 +1,11 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:path_provider/path_provider.dart';
 import '../base_scaffold.dart';
 
 class NaneshvaniScreen extends StatefulWidget {
@@ -13,35 +16,184 @@ class NaneshvaniScreen extends StatefulWidget {
 }
 
 class _NaneshvaniScreenState extends State<NaneshvaniScreen> {
-  late Future<List<dynamic>> _booksFuture;
+  static const String _cacheKey = 'naneshvani_books_cache_v1';
+  static const String _imagesDirName = 'naneshvani_covers';
+
+  List<dynamic> _books = [];
+  bool _isLoading = true; // true only when no cache & initial fetch
+  bool _isRefreshing = false; // background refresh running
 
   @override
   void initState() {
     super.initState();
-    _booksFuture = fetchBooks();
+    _loadCacheThenRefresh();
   }
 
-  Future<List<dynamic>> fetchBooks() async {
-    final response = await http.get(
-      Uri.parse('https://website.sadhumargi.in/api/sahitya/category/naneshvani'),
-    );
+  /// Load cache quickly, show it, then refresh in background
+  Future<void> _loadCacheThenRefresh() async {
+    await _loadCache();
+    // start network fetch but don't block UI
+    _refreshFromNetwork();
+  }
 
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body);
-    } else {
-      throw Exception('Failed to load books');
+  Future<void> _loadCache() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cached = prefs.getString(_cacheKey);
+      if (cached != null) {
+        final List<dynamic> decoded = jsonDecode(cached);
+        if (mounted) {
+          setState(() {
+            _books = decoded;
+            _isLoading = false;
+          });
+        }
+      } else {
+        // no cache: show full loading until network returns
+        if (mounted) setState(() => _isLoading = true);
+      }
+    } catch (e) {
+      debugPrint('Cache load error: $e');
+      if (mounted) setState(() => _isLoading = true);
     }
   }
 
-  void _openPdf(String pdfPath, String? driveLink) async {
-    final url = driveLink != null ? driveLink : 'https://website.sadhumargi.in$pdfPath';
-    if (await canLaunch(url)) {
-      await launch(url);
+  /// Refresh from network, update cache & download new images
+  Future<void> _refreshFromNetwork({bool showSnackOnError = false}) async {
+    if (_isRefreshing) return;
+    final hadCache = _books.isNotEmpty;
+    if (hadCache) {
+      if (mounted) setState(() => _isRefreshing = true);
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not open PDF')),
-      );
+      if (mounted) setState(() => _isLoading = true);
     }
+
+    try {
+      final res = await http.get(Uri.parse('https://website.sadhumargi.in/api/sahitya/category/naneshvani'));
+      if (res.statusCode == 200) {
+        final List<dynamic> fetched = jsonDecode(res.body);
+
+        // compare by id to find new entries
+        final existingIds = _books.map((e) => e['id']?.toString()).whereType<String>().toSet();
+        final fetchedIds = fetched.map((e) => e['id']?.toString()).whereType<String>().toSet();
+
+        // if different, update cache
+        final bool differs = !setEquals(existingIds, fetchedIds) || fetched.length != _books.length;
+
+        if (differs) {
+          // Save JSON cache
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString(_cacheKey, jsonEncode(fetched));
+
+          // Update state immediately (so UI shows fresh list)
+          if (mounted) setState(() => _books = fetched);
+
+          // Download cover images for any items missing locally (non-blocking)
+          // We'll check for each item if file exists; if not - download.
+          _ensureImagesForBooks(fetched);
+        } else {
+          // Still attempt to ensure images exist (in case first run saved JSON only)
+          _ensureImagesForBooks(fetched);
+        }
+      } else {
+        debugPrint('Fetch books failed code=${res.statusCode}');
+        if (showSnackOnError && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to fetch latest books')));
+        }
+      }
+    } catch (e) {
+      debugPrint('Network refresh error: $e');
+      if (showSnackOnError && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error fetching books')));
+      }
+    } finally {
+      if (hadCache) {
+        if (mounted) setState(() => _isRefreshing = false);
+      } else {
+        if (mounted) setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  /// Ensure images downloaded for given book list (downloads only missing ones).
+  Future<void> _ensureImagesForBooks(List<dynamic> books) async {
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+      final imagesDir = Directory('${dir.path}/$_imagesDirName');
+      if (!await imagesDir.exists()) await imagesDir.create(recursive: true);
+
+      for (final b in books) {
+        try {
+          final id = b['id']?.toString();
+          final remotePath = b['cover_photo'];
+          if (id == null || remotePath == null) continue;
+
+          final localFile = File('${imagesDir.path}/nanesh_$id${_extensionFromUrl(remotePath)}');
+          if (!await localFile.exists()) {
+            final imageUrl = 'https://website.sadhumargi.in$remotePath';
+            final resp = await http.get(Uri.parse(imageUrl));
+            if (resp.statusCode == 200) {
+              await localFile.writeAsBytes(resp.bodyBytes);
+            }
+          }
+        } catch (e) {
+          debugPrint('Single image download error: $e');
+          // continue with others
+        }
+      }
+    } catch (e) {
+      debugPrint('Ensure images error: $e');
+    }
+  }
+
+  String _extensionFromUrl(String url) {
+    try {
+      final uri = Uri.parse(url);
+      final segments = uri.pathSegments;
+      if (segments.isNotEmpty) {
+        final last = segments.last;
+        final dot = last.lastIndexOf('.');
+        if (dot != -1 && dot < last.length - 1) return last.substring(dot);
+      }
+    } catch (_) {}
+    return '.jpg';
+  }
+
+  // Helper to get local image file if exists, else null
+  Future<File?> _localImageFileForBook(dynamic book) async {
+    try {
+      final id = book['id']?.toString();
+      final remotePath = book['cover_photo'];
+      if (id == null || remotePath == null) return null;
+      final dir = await getApplicationDocumentsDirectory();
+      final imagesDir = Directory('${dir.path}/$_imagesDirName');
+      final candidate = File('${imagesDir.path}/nanesh_$id${_extensionFromUrl(remotePath)}');
+      if (await candidate.exists()) return candidate;
+    } catch (_) {}
+    return null;
+  }
+
+  void _openPdf(String? pdfPath, String? driveLink) async {
+    final url = (driveLink != null && driveLink.isNotEmpty) ? driveLink : (pdfPath != null ? 'https://website.sadhumargi.in$pdfPath' : null);
+    if (url == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('PDF not available')));
+      return;
+    }
+    final uri = Uri.tryParse(url);
+    if (uri == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Invalid URL')));
+      return;
+    }
+    if (!await canLaunchUrl(uri)) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not open PDF')));
+      return;
+    }
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
+  // Pull-to-refresh handler
+  Future<void> _onRefresh() async {
+    await _refreshFromNetwork(showSnackOnError: true);
   }
 
   @override
@@ -52,100 +204,142 @@ class _NaneshvaniScreenState extends State<NaneshvaniScreen> {
         child: Column(
           children: [
             // Heading
-           Padding(
-  padding: const EdgeInsets.all(16.0),
-  child: Text(
-    'आचार्य श्री नानालाल जी म.सा. का प्रवचन साहित्य',
-    textAlign: TextAlign.center, // Center align
-    style: GoogleFonts.amita(
-      fontSize: 28,
-      fontWeight: FontWeight.bold,
-      color: const Color.fromARGB(255, 102, 87, 3), // Golden color
-    ),
-  ),
-),
-
-            // Books Grid
-            Expanded(
-              child: FutureBuilder<List<dynamic>>(
-                future: _booksFuture,
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
-                  } else if (snapshot.hasError) {
-                    return Center(child: Text('Error: ${snapshot.error}'));
-                  } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                    return const Center(child: Text('No books found.'));
-                  }
-
-                  final books = snapshot.data!;
-
-                  return GridView.builder(
-                    padding: const EdgeInsets.all(12),
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2, // 2 cards per row
-                      crossAxisSpacing: 12,
-                      mainAxisSpacing: 12,
-                      childAspectRatio: 0.65, // height/width ratio
-                    ),
-                    itemCount: books.length,
-                    itemBuilder: (context, index) {
-                      final book = books[index];
-                      final coverPhoto = 'https://website.sadhumargi.in${book['cover_photo']}';
-                      final pdf = book['pdf'];
-                      final driveLink = book['drive_link'];
-
-                      return GestureDetector(
-                        onTap: () => _openPdf(pdf, driveLink),
-                        child: Card(
-                          elevation: 3,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              Expanded(
-                                child: ClipRRect(
-                                  borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-                                  child: Image.network(
-                                    coverPhoto,
-                                    fit: BoxFit.cover,
-                                    loadingBuilder: (context, child, loadingProgress) {
-                                      if (loadingProgress == null) return child;
-                                      return const Center(child: CircularProgressIndicator());
-                                    },
-                                    errorBuilder: (context, error, stackTrace) {
-                                      return const Center(child: Icon(Icons.broken_image, size: 50));
-                                    },
-                                  ),
-                                ),
-                              ),
-                              Padding(
-                                padding: const EdgeInsets.all(8.0),
-                                child: Text(
-                                  book['name'] ?? ' ',
-                                  textAlign: TextAlign.center,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  );
-                },
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Text(
+                'आचार्य श्री नानालाल जी म.सा. का प्रवचन साहित्य',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.roboto(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w700,
+                  color: const Color.fromARGB(255, 102, 87, 3),
+                ),
               ),
+            ),
+
+            // Updating indicator
+            if (_isRefreshing)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: const [
+                    SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                    SizedBox(width: 8),
+                    Text('Updating...', style: TextStyle(fontSize: 13)),
+                  ],
+                ),
+              ),
+
+            // Body
+            Expanded(
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : RefreshIndicator(
+                      onRefresh: _onRefresh,
+                      color: Colors.indigo,
+                      child: _books.isEmpty
+                          ? ListView(
+                              physics: const AlwaysScrollableScrollPhysics(),
+                              children: const [SizedBox(height: 80), Center(child: Text('No books found.'))],
+                            )
+                          : GridView.builder(
+                              padding: const EdgeInsets.all(12),
+                              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 2,
+                                crossAxisSpacing: 12,
+                                mainAxisSpacing: 12,
+                                childAspectRatio: 0.65,
+                              ),
+                              itemCount: _books.length,
+                              itemBuilder: (context, index) {
+                                final book = _books[index];
+                                final pdf = book['pdf'];
+                                final driveLink = book['drive_link'];
+                                final title = (book['name'] ?? '').toString();
+
+                                return GestureDetector(
+                                  onTap: () => _openPdf(pdf, driveLink),
+                                  child: Card(
+                                    elevation: 3,
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                                      children: [
+                                        // image
+                                        Expanded(
+                                          child: FutureBuilder<File?>(
+                                            future: _localImageFileForBook(book),
+                                            builder: (context, snap) {
+                                              if (snap.connectionState == ConnectionState.done && snap.data != null) {
+                                                return ClipRRect(
+                                                  borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                                                  child: Image.file(snap.data!, fit: BoxFit.cover),
+                                                );
+                                              }
+                                              // fallback to network image (shows while downloading)
+                                              final cover = book['cover_photo'];
+                                              final coverUrl = (cover != null) ? 'https://website.sadhumargi.in$cover' : null;
+                                              if (coverUrl != null) {
+                                                return ClipRRect(
+                                                  borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                                                  child: Image.network(
+                                                    coverUrl,
+                                                    fit: BoxFit.cover,
+                                                    loadingBuilder: (context, child, loadingProgress) {
+                                                      if (loadingProgress == null) return child;
+                                                      return const Center(child: CircularProgressIndicator());
+                                                    },
+                                                    errorBuilder: (context, error, stackTrace) {
+                                                      return const Center(child: Icon(Icons.broken_image, size: 40));
+                                                    },
+                                                  ),
+                                                );
+                                              }
+                                              // placeholder
+                                              return ClipRRect(
+                                                borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                                                child: Container(
+                                                  color: Colors.grey.shade200,
+                                                  alignment: Alignment.center,
+                                                  child: const Icon(Icons.photo, size: 40, color: Colors.grey),
+                                                ),
+                                              );
+                                            },
+                                          ),
+                                        ),
+
+                                        // title
+                                        Padding(
+                                          padding: const EdgeInsets.all(8.0),
+                                          child: Text(
+                                            title,
+                                            textAlign: TextAlign.center,
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                    ),
             ),
           ],
         ),
       ),
     );
   }
+}
+
+/// small helper to compare sets (because SetEquality not imported)
+bool setEquals(Set? a, Set? b) {
+  if (identical(a, b)) return true;
+  if (a == null || b == null) return false;
+  if (a.length != b.length) return false;
+  for (final e in a) if (!b.contains(e)) return false;
+  return true;
 }

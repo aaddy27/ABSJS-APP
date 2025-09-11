@@ -4,6 +4,8 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:confetti/confetti.dart';
 
+import 'base_scaffold.dart';
+
 class AchievementsScreen extends StatefulWidget {
   const AchievementsScreen({super.key});
 
@@ -65,6 +67,7 @@ class _AchievementsScreenState extends State<AchievementsScreen> with SingleTick
   void dispose() {
     _tabController.dispose();
     _confettiController.dispose();
+    detailsController.dispose();
     super.dispose();
   }
 
@@ -126,7 +129,7 @@ class _AchievementsScreenState extends State<AchievementsScreen> with SingleTick
         backgroundColor: Colors.green,
       ));
       clearForm();
-      fetchAchievements();
+      await fetchAchievements();
       _tabController.animateTo(1);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
@@ -156,7 +159,12 @@ class _AchievementsScreenState extends State<AchievementsScreen> with SingleTick
           content: Text('🗑️ उपलब्धि हटाई गई'),
           backgroundColor: Colors.orange,
         ));
-        fetchAchievements();
+        await fetchAchievements();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('हटाने में त्रुटि'),
+          backgroundColor: Colors.red,
+        ));
       }
     }
   }
@@ -167,19 +175,21 @@ class _AchievementsScreenState extends State<AchievementsScreen> with SingleTick
       selectedField = data['achievement_sector'];
       selectedLevel = data['achievement_level'];
       selectedType = data['achievement_type'];
-      selectedYear = data['achievement_year'].toString();
+      selectedYear = data['achievement_year']?.toString();
       detailsController.text = data['achievement_detail'] ?? '';
       _tabController.animateTo(0);
     });
   }
 
   void clearForm() {
-    selectedField = null;
-    selectedLevel = null;
-    selectedType = null;
-    selectedYear = null;
-    detailsController.clear();
-    editingId = null;
+    setState(() {
+      selectedField = null;
+      selectedLevel = null;
+      selectedType = null;
+      selectedYear = null;
+      detailsController.clear();
+      editingId = null;
+    });
   }
 
   Widget buildDropdown(String label, Icon icon, Map<String, String> map, String? selectedValue, Function(String?) onChanged) {
@@ -212,9 +222,8 @@ class _AchievementsScreenState extends State<AchievementsScreen> with SingleTick
     );
   }
 
- Widget buildFormTab() {
-  return SafeArea(
-    child: SingleChildScrollView(
+  Widget buildFormTab() {
+    return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Card(
         elevation: 4,
@@ -236,7 +245,7 @@ class _AchievementsScreenState extends State<AchievementsScreen> with SingleTick
               const SizedBox(height: 20),
               ElevatedButton.icon(
                 icon: Icon(editingId == null ? Icons.add : Icons.save),
-                label: Text(editingId == null ? 'प्रोफाइल में जोड़ें' : 'अपडेट करें'),
+                label: Text(editingId == null ? 'प्रोफ़ाइल में जोड़ें' : 'अपडेट करें'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.teal,
                   padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
@@ -248,13 +257,11 @@ class _AchievementsScreenState extends State<AchievementsScreen> with SingleTick
           ),
         ),
       ),
-    ),
-  );
-}
+    );
+  }
 
-Widget buildListTab() {
-  return SafeArea(
-    child: Container(
+  Widget buildListTab() {
+    return Container(
       padding: const EdgeInsets.all(12),
       child: achievements.isEmpty
           ? const Center(child: Text('😐 कोई उपलब्धि नहीं मिली।'))
@@ -283,8 +290,8 @@ Widget buildListTab() {
                       children: [
                         Text('📍 स्तर: ${levelMap[data['achievement_level']] ?? data['achievement_level']}'),
                         Text('🏆 प्रकार: ${typeMap[data['achievement_type']] ?? data['achievement_type']}'),
-                        Text('📅 वर्ष: ${data['achievement_year']}'),
-                        Text('📝 विवरण: ${data['achievement_detail']}'),
+                        Text('📅 वर्ष: ${data['achievement_year'] ?? ''}'),
+                        Text('📝 विवरण: ${data['achievement_detail'] ?? ''}'),
                       ],
                     ),
                     trailing: Wrap(
@@ -304,63 +311,86 @@ Widget buildListTab() {
                 );
               },
             ),
-    ),
-  );
-}
-
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-return Scaffold(
-  resizeToAvoidBottomInset: true, // 🟢 this allows screen to resize when keyboard appears
-  appBar: AppBar(
-  backgroundColor: Colors.indigo.shade700, // 🔵 Dark Blue
-  title: const Text(
-    '📝 उपलब्धियाँ',
-    style: TextStyle(color: Colors.white), // Text color white
-  ),
-  bottom: TabBar(
-    controller: _tabController,
-    indicatorColor: Colors.white,
-    labelColor: Colors.white,
-    unselectedLabelColor: Colors.white70,
-    tabs: const [
-      Tab(icon: Icon(Icons.add, color: Colors.white), text: 'जोड़ें'),
-      Tab(icon: Icon(Icons.list, color: Colors.white), text: 'सूची'),
-    ],
-  ),
-),
+    // Use BaseScaffold so global appbar & nav stay consistent
+    return BaseScaffold(
+      selectedIndex: -1, // no bottom nav highlight here; change if needed
+      body: SafeArea(
+        child: Stack(
+          children: [
+            Column(
+              children: [
+                // local header with TabBar
+                Container(
+                  color: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          const SizedBox(width: 4),
+                          Text('📝 उपलब्धियाँ', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.indigo.shade700)),
+                          const Spacer(),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      TabBar(
+                        controller: _tabController,
+                        indicatorColor: Colors.indigo.shade700,
+                        labelColor: Colors.indigo.shade700,
+                        unselectedLabelColor: Colors.grey.shade600,
+                        tabs: const [
+                          Tab(icon: Icon(Icons.add), text: 'जोड़ें'),
+                          Tab(icon: Icon(Icons.list), text: 'सूची'),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
 
-  body: Stack(
-    children: [
-      TabBarView(
-        controller: _tabController,
-        children: [
-          buildFormTab(),
-          buildListTab(),
-        ],
-      ),
-      Align(
-        alignment: Alignment.topCenter,
-        child: ConfettiWidget(
-          confettiController: _confettiController,
-          blastDirectionality: BlastDirectionality.explosive,
-          numberOfParticles: 30,
-          emissionFrequency: 0.05,
-          maxBlastForce: 20,
-          minBlastForce: 10,
-          gravity: 0.4,
-          colors: const [
-            Colors.red,
-            Colors.green,
-            Colors.blue,
-            Colors.orange,
-            Colors.purple,
+                // content
+                Expanded(
+                  child: TabBarView(
+                    controller: _tabController,
+                    children: [
+                      SingleChildScrollView(child: buildFormTab()),
+                      buildListTab(),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+
+            // Confetti overlay (top center)
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: ConfettiWidget(
+                confettiController: _confettiController,
+                blastDirectionality: BlastDirectionality.explosive,
+                numberOfParticles: 30,
+                emissionFrequency: 0.05,
+                maxBlastForce: 20,
+                minBlastForce: 10,
+                gravity: 0.4,
+                colors: const [
+                  Colors.red,
+                  Colors.green,
+                  Colors.blue,
+                  Colors.orange,
+                  Colors.purple,
+                ],
+                shouldLoop: false,
+              ),
+            ),
           ],
         ),
       ),
-    ],
-  ),
-);
+    );
   }
 }

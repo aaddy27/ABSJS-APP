@@ -1,9 +1,12 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
-import '../base_scaffold.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:path_provider/path_provider.dart';
+import '../base_scaffold.dart';
 
 class RamUvachScreen extends StatefulWidget {
   const RamUvachScreen({super.key});
@@ -13,46 +16,173 @@ class RamUvachScreen extends StatefulWidget {
 }
 
 class _RamUvachScreenState extends State<RamUvachScreen> {
-  List<dynamic> books = [];
-  bool isLoading = true;
+  static const String _cacheKey = 'ramuvach_books_cache_v1';
+  static const String _imagesDirName = 'ramuvach_covers';
+
+  List<dynamic> _books = [];
+  bool _isLoading = true; // true only when no cache & initial fetch
+  bool _isRefreshing = false; // background refresh running
 
   @override
   void initState() {
     super.initState();
-    fetchBooks();
+    _loadCacheThenRefresh();
   }
 
-  Future<void> fetchBooks() async {
-    try {
-      final response = await http.get(
-        Uri.parse('https://website.sadhumargi.in/api/sahitya/category/ram_uvach'),
-      );
+  Future<void> _loadCacheThenRefresh() async {
+    await _loadCache();
+    // start background refresh (non-blocking)
+    _refreshFromNetwork();
+  }
 
-      if (response.statusCode == 200) {
-        final List<dynamic> data = json.decode(response.body);
-        setState(() {
-          books = data;
-          isLoading = false;
-        });
+  Future<void> _loadCache() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cached = prefs.getString(_cacheKey);
+      if (cached != null) {
+        final List<dynamic> decoded = jsonDecode(cached);
+        if (mounted) {
+          setState(() {
+            _books = decoded;
+            _isLoading = false;
+          });
+        }
       } else {
-        setState(() {
-          isLoading = false;
-        });
-        debugPrint('Failed to fetch data');
+        if (mounted) setState(() => _isLoading = true);
       }
     } catch (e) {
-      setState(() {
-        isLoading = false;
-      });
-      debugPrint('Error: $e');
+      debugPrint('Cache load error: $e');
+      if (mounted) setState(() => _isLoading = true);
     }
   }
 
-  Future<void> _launchURL(String url) async {
-    final fullUrl = url.startsWith('http') ? url : 'https://website.sadhumargi.in$url';
-    if (!await launchUrl(Uri.parse(fullUrl))) {
-      debugPrint('Could not launch $fullUrl');
+  Future<void> _refreshFromNetwork({bool showSnackOnError = false}) async {
+    if (_isRefreshing) return;
+    final hadCache = _books.isNotEmpty;
+    if (hadCache) {
+      if (mounted) setState(() => _isRefreshing = true);
+    } else {
+      if (mounted) setState(() => _isLoading = true);
     }
+
+    try {
+      final res = await http.get(Uri.parse('https://website.sadhumargi.in/api/sahitya/category/ram_uvach'));
+      if (res.statusCode == 200) {
+        final List<dynamic> fetched = jsonDecode(res.body);
+
+        final existingIds = _books.map((e) => e['id']?.toString()).whereType<String>().toSet();
+        final fetchedIds = fetched.map((e) => e['id']?.toString()).whereType<String>().toSet();
+
+        final bool differs = !setEquals(existingIds, fetchedIds) || fetched.length != _books.length;
+
+        if (differs) {
+          // update cache JSON
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString(_cacheKey, jsonEncode(fetched));
+          if (mounted) setState(() => _books = fetched);
+          // ensure images for new items
+          _ensureImagesForBooks(fetched);
+        } else {
+          // still ensure images exist
+          _ensureImagesForBooks(fetched);
+        }
+      } else {
+        debugPrint('Fetch ram_uvach failed code=${res.statusCode}');
+        if (showSnackOnError && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to fetch latest books')));
+        }
+      }
+    } catch (e) {
+      debugPrint('Network refresh error: $e');
+      if (showSnackOnError && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error fetching books')));
+      }
+    } finally {
+      if (hadCache) {
+        if (mounted) setState(() => _isRefreshing = false);
+      } else {
+        if (mounted) setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _ensureImagesForBooks(List<dynamic> books) async {
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+      final imagesDir = Directory('${dir.path}/$_imagesDirName');
+      if (!await imagesDir.exists()) await imagesDir.create(recursive: true);
+
+      for (final b in books) {
+        try {
+          final id = b['id']?.toString();
+          final remotePath = b['cover_photo'];
+          if (id == null || remotePath == null) continue;
+
+          final localFile = File('${imagesDir.path}/ramuvach_$id${_extensionFromUrl(remotePath)}');
+          if (!await localFile.exists()) {
+            final imageUrl = 'https://website.sadhumargi.in$remotePath';
+            final resp = await http.get(Uri.parse(imageUrl));
+            if (resp.statusCode == 200) {
+              await localFile.writeAsBytes(resp.bodyBytes);
+            }
+          }
+        } catch (e) {
+          debugPrint('Single image download error for book: $e');
+        }
+      }
+    } catch (e) {
+      debugPrint('Ensure images error: $e');
+    }
+  }
+
+  String _extensionFromUrl(String url) {
+    try {
+      final uri = Uri.parse(url);
+      final segments = uri.pathSegments;
+      if (segments.isNotEmpty) {
+        final last = segments.last;
+        final dot = last.lastIndexOf('.');
+        if (dot != -1 && dot < last.length - 1) return last.substring(dot);
+      }
+    } catch (_) {}
+    return '.jpg';
+  }
+
+  Future<File?> _localImageFileForBook(dynamic book) async {
+    try {
+      final id = book['id']?.toString();
+      final remotePath = book['cover_photo'];
+      if (id == null || remotePath == null) return null;
+      final dir = await getApplicationDocumentsDirectory();
+      final imagesDir = Directory('${dir.path}/$_imagesDirName');
+      final candidate = File('${imagesDir.path}/ramuvach_$id${_extensionFromUrl(remotePath)}');
+      if (await candidate.exists()) return candidate;
+    } catch (e) {
+      debugPrint('local image file check error: $e');
+    }
+    return null;
+  }
+
+  void _openPdf(String? pdfPath, String? driveLink) async {
+    final url = (driveLink != null && driveLink.isNotEmpty) ? driveLink : (pdfPath != null ? 'https://website.sadhumargi.in$pdfPath' : null);
+    if (url == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('PDF not available')));
+      return;
+    }
+    final uri = Uri.tryParse(url);
+    if (uri == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Invalid URL')));
+      return;
+    }
+    if (!await canLaunchUrl(uri)) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not open PDF')));
+      return;
+    }
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
+  Future<void> _onRefresh() async {
+    await _refreshFromNetwork(showSnackOnError: true);
   }
 
   @override
@@ -62,127 +192,165 @@ class _RamUvachScreenState extends State<RamUvachScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // Heading
             Padding(
               padding: const EdgeInsets.all(16.0),
               child: Center(
                 child: Text(
                   'आचार्य श्री रामलाल जी म.सा. का प्रवचन साहित्य',
-                  style: GoogleFonts.amita(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
+                  style: GoogleFonts.roboto(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w700,
                     color: const Color.fromARGB(255, 102, 87, 3),
                   ),
                 ),
               ),
             ),
 
-            // Books Grid
+            if (_isRefreshing)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: const [
+                    SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                    SizedBox(width: 8),
+                    Text('Updating...', style: TextStyle(fontSize: 13)),
+                  ],
+                ),
+              ),
+
             Expanded(
-              child: isLoading
+              child: _isLoading
                   ? const Center(child: CircularProgressIndicator())
-                  : books.isEmpty
-                      ? const Center(child: Text('No books found'))
-                      : Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          child: GridView.builder(
-                            itemCount: books.length,
-                            gridDelegate:
-                                const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 2, // 2 cards per row
-                              crossAxisSpacing: 12,
-                              mainAxisSpacing: 12,
-                              childAspectRatio: 0.6,
-                            ),
-                            itemBuilder: (context, index) {
-                              final book = books[index];
-                              final coverPhoto = book['cover_photo'];
-                              final pdf = book['pdf'];
-                              final driveLink = book['drive_link'];
-
-                              return Card(
-                                elevation: 3,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
+                  : RefreshIndicator(
+                      onRefresh: _onRefresh,
+                      color: Colors.indigo,
+                      child: _books.isEmpty
+                          ? ListView(
+                              physics: const AlwaysScrollableScrollPhysics(),
+                              children: const [SizedBox(height: 80), Center(child: Text('No books found.'))],
+                            )
+                          : Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 12),
+                              child: GridView.builder(
+                                padding: const EdgeInsets.only(top: 8, bottom: 12),
+                                itemCount: _books.length,
+                                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: 2,
+                                  crossAxisSpacing: 12,
+                                  mainAxisSpacing: 12,
+                                  childAspectRatio: 0.6,
                                 ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.center,
-                                  children: [
-                                    // Cover photo with flexible height
-                                    Expanded(
-                                      child: coverPhoto != null
-                                          ? ClipRRect(
-                                              borderRadius: const BorderRadius.only(
-                                                  topLeft: Radius.circular(12),
-                                                  topRight: Radius.circular(12)),
-                                              child: Image.network(
-                                                'https://website.sadhumargi.in$coverPhoto',
-                                                width: double.infinity,
-                                                fit: BoxFit.cover, // auto resize
-                                              ),
-                                            )
-                                          : Container(
-                                              width: double.infinity,
-                                              color: Colors.grey[300],
-                                              child: const Icon(Icons.book, size: 50),
+                                itemBuilder: (context, index) {
+                                  final book = _books[index];
+                                  final pdf = book['pdf'];
+                                  final driveLink = book['drive_link'];
+                                  final title = (book['name'] ?? '').toString();
+
+                                  return GestureDetector(
+                                    onTap: () => _openPdf(pdf, driveLink),
+                                    child: Card(
+                                      elevation: 3,
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                                        children: [
+                                          Expanded(
+                                            child: FutureBuilder<File?>(
+                                              future: _localImageFileForBook(book),
+                                              builder: (context, snap) {
+                                                if (snap.connectionState == ConnectionState.done && snap.data != null) {
+                                                  return ClipRRect(
+                                                    borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                                                    child: Image.file(snap.data!, fit: BoxFit.cover),
+                                                  );
+                                                }
+                                                final cover = book['cover_photo'];
+                                                final coverUrl = (cover != null) ? 'https://website.sadhumargi.in$cover' : null;
+                                                if (coverUrl != null) {
+                                                  return ClipRRect(
+                                                    borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                                                    child: Image.network(
+                                                      coverUrl,
+                                                      fit: BoxFit.cover,
+                                                      loadingBuilder: (context, child, loadingProgress) {
+                                                        if (loadingProgress == null) return child;
+                                                        return const Center(child: CircularProgressIndicator());
+                                                      },
+                                                      errorBuilder: (context, error, stackTrace) {
+                                                        return const Center(child: Icon(Icons.broken_image, size: 40));
+                                                      },
+                                                    ),
+                                                  );
+                                                }
+                                                return ClipRRect(
+                                                  borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                                                  child: Container(
+                                                    color: Colors.grey.shade200,
+                                                    alignment: Alignment.center,
+                                                    child: const Icon(Icons.photo, size: 40, color: Colors.grey),
+                                                  ),
+                                                );
+                                              },
                                             ),
-                                    ),
+                                          ),
 
-                                    const SizedBox(height: 8),
+                                          Padding(
+                                            padding: const EdgeInsets.all(8.0),
+                                            child: Text(
+                                              title,
+                                              textAlign: TextAlign.center,
+                                              maxLines: 2,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                                            ),
+                                          ),
 
-                                    // Book name
-                                    Padding(
-                                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                                      child: Text(
-                                        book['name'] ?? 'राम उवाच',
-                                        textAlign: TextAlign.center,
-                                        style: const TextStyle(
-                                            fontWeight: FontWeight.bold),
+                                          if (pdf != null || driveLink != null)
+                                            Padding(
+                                              padding: const EdgeInsets.only(bottom: 8.0),
+                                              child: Row(
+                                                mainAxisAlignment: MainAxisAlignment.center,
+                                                children: [
+                                                  if (pdf != null)
+                                                    ElevatedButton.icon(
+                                                      onPressed: () => _openPdf(pdf, null),
+                                                      icon: const Icon(Icons.picture_as_pdf),
+                                                      label: const Text('PDF'),
+                                                      style: ElevatedButton.styleFrom(backgroundColor: const Color.fromARGB(255, 253, 253, 253)),
+                                                    ),
+                                                  if (pdf != null && driveLink != null) const SizedBox(width: 8),
+                                                  if (driveLink != null)
+                                                    ElevatedButton.icon(
+                                                      onPressed: () => _openPdf(null, driveLink),
+                                                      icon: const Icon(Icons.drive_file_move),
+                                                      label: const Text('Drive'),
+                                                      style: ElevatedButton.styleFrom(backgroundColor: const Color.fromARGB(255, 248, 248, 247)),
+                                                    ),
+                                                ],
+                                              ),
+                                            ),
+                                        ],
                                       ),
                                     ),
-
-                                    const SizedBox(height: 8),
-
-                                    // Buttons (PDF / Drive)
-                                    if (pdf != null || driveLink != null)
-                                      Padding(
-                                        padding: const EdgeInsets.only(bottom: 8.0),
-                                        child: Row(
-                                          mainAxisAlignment: MainAxisAlignment.center,
-                                          children: [
-                                            if (pdf != null)
-                                              ElevatedButton.icon(
-                                                onPressed: () => _launchURL(pdf),
-                                                icon: const Icon(Icons.picture_as_pdf),
-                                                label: const Text('PDF'),
-                                                style: ElevatedButton.styleFrom(
-                                                  backgroundColor: const Color.fromARGB(255, 253, 253, 253),
-                                                ),
-                                              ),
-                                            if (pdf != null && driveLink != null)
-                                              const SizedBox(width: 8),
-                                            if (driveLink != null)
-                                              ElevatedButton.icon(
-                                                onPressed: () => _launchURL(driveLink),
-                                                icon: const Icon(Icons.drive_file_move),
-                                                label: const Text('Drive'),
-                                                style: ElevatedButton.styleFrom(
-                                                  backgroundColor: const Color.fromARGB(255, 248, 248, 247),
-                                                ),
-                                              ),
-                                          ],
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                              );
-                            },
-                          ),
-                        ),
+                                  );
+                                },
+                              ),
+                            ),
+                    ),
             ),
           ],
         ),
       ),
     );
   }
+}
+
+/// small helper to compare sets (because SetEquality not imported)
+bool setEquals(Set? a, Set? b) {
+  if (identical(a, b)) return true;
+  if (a == null || b == null) return false;
+  if (a.length != b.length) return false;
+  for (final e in a) if (!b.contains(e)) return false;
+  return true;
 }

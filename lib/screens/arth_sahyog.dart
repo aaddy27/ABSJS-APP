@@ -207,6 +207,7 @@ class ArthMainTab extends StatelessWidget {
                   const Text("💳 Account Number: 31264126861"),
                   const Text("🔑 IFSC CODE: SBIN0003401"),
                   const Text("📍 Branch Name: Gangasahar Road, Bikaner"),
+                  const Text(" लेखा विभाग केन्द्रीय कार्यालय बीकानेर 7073311108, accounts@sadhumargi.com"),
                 ],
               ),
             ),

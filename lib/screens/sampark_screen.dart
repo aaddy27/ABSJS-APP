@@ -33,8 +33,7 @@ class SamparkScreen extends StatelessWidget {
   }
 
   // ------------------ Card Builders ------------------
-  Widget _buildCard(String title, String phone,
-      [String? email, bool isWhatsApp = false]) {
+  Widget _buildCard(String title, String phone, [String? email, bool isWhatsApp = false]) {
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       elevation: 4,
@@ -46,9 +45,9 @@ class SamparkScreen extends StatelessWidget {
           children: [
             Text(
               title,
-              style: GoogleFonts.amita(
+              style: GoogleFonts.inter(
                 fontSize: 20,
-                fontWeight: FontWeight.bold,
+                fontWeight: FontWeight.w700,
                 color: Colors.indigo.shade900,
               ),
             ),
@@ -120,8 +119,7 @@ class SamparkScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildSmallCard(String title, String address,
-      {String? phone, String? email}) {
+  Widget _buildSmallCard(String title, String address, {String? phone, String? email}) {
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       elevation: 3,
@@ -131,25 +129,23 @@ class SamparkScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(title,
-                style: GoogleFonts.amita(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.indigo)),
+            Text(
+              title,
+              style: GoogleFonts.inter(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: Colors.indigo,
+              ),
+            ),
             const SizedBox(height: 6),
-            Text("📍 $address",
-                style: GoogleFonts.roboto(fontSize: 14, color: Colors.black87)),
+            Text("📍 $address", style: GoogleFonts.roboto(fontSize: 14, color: Colors.black87)),
             if (phone != null) ...[
               const SizedBox(height: 4),
-              Text("📞 $phone",
-                  style:
-                      GoogleFonts.roboto(fontSize: 14, color: Colors.blueGrey)),
+              Text("📞 $phone", style: GoogleFonts.roboto(fontSize: 14, color: Colors.blueGrey)),
             ],
             if (email != null) ...[
               const SizedBox(height: 4),
-              Text("✉️ $email",
-                  style:
-                      GoogleFonts.roboto(fontSize: 14, color: Colors.redAccent)),
+              Text("✉️ $email", style: GoogleFonts.roboto(fontSize: 14, color: Colors.redAccent)),
             ],
           ],
         ),
@@ -169,7 +165,7 @@ class SamparkScreen extends StatelessWidget {
             Container(
               color: Colors.indigo.shade50,
               child: TabBar(
-                labelStyle: GoogleFonts.amita(fontSize: 18),
+                labelStyle: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w600),
                 labelColor: Colors.indigo,
                 indicatorColor: Colors.indigo,
                 tabs: const [
@@ -188,8 +184,7 @@ class SamparkScreen extends StatelessWidget {
                       children: [
                         // Extra Address Card on Top
                         Card(
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16)),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                           elevation: 5,
                           margin: const EdgeInsets.only(bottom: 20),
                           child: Padding(
@@ -197,11 +192,14 @@ class SamparkScreen extends StatelessWidget {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text("केंद्रीय कार्यालय",
-                                    style: GoogleFonts.amita(
-                                        fontSize: 22,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.indigo.shade900)),
+                                Text(
+                                  "केंद्रीय कार्यालय",
+                                  style: GoogleFonts.inter(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.indigo.shade900,
+                                  ),
+                                ),
                                 const SizedBox(height: 10),
                                 Text(
                                   "पता: समता भवन, आचार्य श्री नानेश मार्ग, नोखा रोड, गंगाशहर, बीकानेर – 334401, राजस्थान, भारत",
@@ -211,15 +209,13 @@ class SamparkScreen extends StatelessWidget {
                                 InkWell(
                                   onTap: () => _launchPhone("01512270261"),
                                   child: Text("फोन: +91 151 2270261",
-                                      style: GoogleFonts.roboto(
-                                          fontSize: 15, color: Colors.blue)),
+                                      style: GoogleFonts.roboto(fontSize: 15, color: Colors.blue)),
                                 ),
                                 const SizedBox(height: 6),
                                 InkWell(
                                   onTap: () => _launchEmail("ho@sadhumargi.com"),
                                   child: Text("ईमेल: ho@sadhumargi.com",
-                                      style: GoogleFonts.roboto(
-                                          fontSize: 15, color: Colors.red)),
+                                      style: GoogleFonts.roboto(fontSize: 15, color: Colors.red)),
                                 ),
                               ],
                             ),
@@ -227,6 +223,7 @@ class SamparkScreen extends StatelessWidget {
                         ),
 
                         // Existing Cards
+                        _buildCard("केंद्रीय कार्यालय लेख विभाग", "7073311108", "accounts@sadhumargi.com"),
                         _buildCard("श्रमणोपासक", "9799061990", "news@sadhumargi.com"),
                         _buildCard("श्रमणोपासक समाचार", "8955682153", "news@sadhumargi.com"),
                         _buildCard("साहित्य", "8209090748", "sahitya@sadhumargi.com"),
@@ -252,36 +249,46 @@ class SamparkScreen extends StatelessWidget {
                     childAspectRatio: 2.1,
                     children: [
                       _buildSmallCard(
-                          "समता प्रचार संघ द्वारा – आचार्य श्री नानेश ध्यान केंद्र",
-                          "राणाप्रताप नगर, पद्मिनी मार्ग, सुन्दरवास पो. उदयपुर (राज.)",
-                          phone: "0294-2490717 (ऑ./फैक्स)",
-                          email: "asndkudaipur@gmail.com"),
-                      _buildSmallCard("श्री गणेश जैन छात्रावास",
-                          "राणाप्रताप नगर, पद्मिनी मार्ग, सुन्दरवास पो. उदयपुर (राज.)",
-                          phone: "0294-2494375 (ऑ./फैक्स)"),
-                      _buildSmallCard("श्री गणेश जैन ज्ञान भंडार",
-                          "समता भवन, नौलाईपुरा पो. रतलाम – 457001 (म.प्र.)",
-                          phone: "07412-244443 (ऑ.)",
-                          email: "rmgorecha@gmail.com"),
+                        "समता प्रचार संघ द्वारा – आचार्य श्री नानेश ध्यान केंद्र",
+                        "राणाप्रताप नगर, पद्मिनी मार्ग, सुन्दरवास पो. उदयपुर (राज.)",
+                        phone: "0294-2490717 (ऑ./फैक्स)",
+                        email: "asndkudaipur@gmail.com",
+                      ),
                       _buildSmallCard(
-                          "श्री प्रेमराज गणपतराज बोहरा धर्मपाल जैन छात्रावास",
-                          "नानेश निकेतन, दिलीपनगर पो. रतलाम – (म.प्र.)",
-                          phone: "07412-267212 (ऑ.)",
-                          email: "naneshniketanrtm@gmail.com"),
-                      _buildSmallCard("भगवान महावीर समता चिकित्सालय",
-                          "पो. डोंडीलोहारा, जि. दुर्ग – 491771 (छ.ग.)",
-                          phone: "07749-264054 (ऑ.)",
-                          email: "asndkudaipur@gmail.com"),
+                        "श्री गणेश जैन छात्रावास",
+                        "राणाप्रताप नगर, पद्मिनी मार्ग, सुन्दरवास पो. उदयपुर (राज.)",
+                        phone: "0294-2494375 (ऑ./फैक्स)",
+                      ),
                       _buildSmallCard(
-                          "आगम, अहिंसा-समता एवं प्राकृत संस्थान द्वारा – आचार्य श्री नानेश ध्यान केंद्र",
-                          "राणाप्रताप नगर, पद्मिनी मार्ग, पो. उदयपुर (राज.)",
-                          phone: "0294-2490717 (ऑ.)",
-                          email: "asndkudaipur@gmail.com"),
-                      _buildSmallCard("श्री आदिनाथ पशु रक्षा संस्थान",
-                          "पो. कानोड़, जि. उदयपुर – 313604 (राज.)",
-                          phone: "9460726890"),
-                      _buildSmallCard("समता महिला सेवा केंद्र",
-                          "पो. रतलाम (म.प्र.)", phone: "07412-238696"),
+                        "श्री गणेश जैन ज्ञान भंडार",
+                        "समता भवन, नौलाईपुरा पो. रतलाम – 457001 (म.प्र.)",
+                        phone: "07412-244443 (ऑ.)",
+                        email: "rmgorecha@gmail.com",
+                      ),
+                      _buildSmallCard(
+                        "श्री प्रेमराज गणपतराज बोहरा धर्मपाल जैन छात्रावास",
+                        "नानेश निकेतन, दिलीपनगर पो. रतलाम – (म.प्र.)",
+                        phone: "07412-267212 (ऑ.)",
+                        email: "naneshniketanrtm@gmail.com",
+                      ),
+                      _buildSmallCard(
+                        "भगवान महावीर समता चिकित्सालय",
+                        "पो. डोंडीलोहारा, जि. दुर्ग – 491771 (छ.ग.)",
+                        phone: "07749-264054 (ऑ.)",
+                        email: "asndkudaipur@gmail.com",
+                      ),
+                      _buildSmallCard(
+                        "आगम, अहिंसा-समता एवं प्राकृत संस्थान द्वारा – आचार्य श्री नानेश ध्यान केंद्र",
+                        "राणाप्रताप नगर, पद्मिनी मार्ग, पो. उदयपुर (राज.)",
+                        phone: "0294-2490717 (ऑ.)",
+                        email: "asndkudaipur@gmail.com",
+                      ),
+                      _buildSmallCard(
+                        "श्री आदिनाथ पशु रक्षा संस्थान",
+                        "पो. कानोड़, जि. उदयपुर – 313604 (राज.)",
+                        phone: "9460726890",
+                      ),
+                      _buildSmallCard("समता महिला सेवा केंद्र", "पो. रतलाम (म.प्र.)", phone: "07412-238696"),
                     ],
                   ),
                 ],

@@ -1,3 +1,4 @@
+// ignore_for_file: use_build_context_synchronously
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
@@ -6,9 +7,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
-import 'package:laravel_auth_flutter/screens/shree_sangh/home_screen.dart' as shree;
 import 'package:shared_preferences/shared_preferences.dart';
 
+// ---- Your existing screens ----
+import 'package:laravel_auth_flutter/screens/shree_sangh/home_screen.dart' as shree;
 import 'arth_sahyog.dart';
 import 'chaturmas_suchi_screen.dart';
 import 'login_screen.dart';
@@ -25,6 +27,9 @@ import 'vihar_screen.dart';
 import 'yuva_sangh/layout.dart';
 import 'notifications/notifications_screen.dart';
 
+// ---- Split widgets (new files) ----
+import 'home_screen/home_grid_cards.dart';
+import 'home_screen/home_info_cards.dart';
 
 /// -----------------------
 /// Design System
@@ -81,7 +86,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> logout() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.clear();
-    Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => LoginScreen()));
+    Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const LoginScreen()));
   }
 
   final List<Widget> _screens = const [
@@ -95,7 +100,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // (Optional) Cap extreme text scaling to avoid overflow
     final media = MediaQuery.of(context);
     final clampedTextScaler = media.textScaler.clamp(minScaleFactor: 0.9, maxScaleFactor: 1.2);
 
@@ -105,64 +109,48 @@ class _HomeScreenState extends State<HomeScreen> {
         onWillPop: () async => false,
         child: Scaffold(
           backgroundColor: AppStyle.bg,
-       appBar: AppBar(
-  automaticallyImplyLeading: false, // ✅ Back button disable
-  backgroundColor: const Color(0xFF1E3A8A),
-  systemOverlayStyle: const SystemUiOverlayStyle(
-    statusBarColor: Color(0xFF1E3A8A),
-    statusBarIconBrightness: Brightness.light,
-  ),
-
-  title: Row(
-    mainAxisAlignment: MainAxisAlignment.center,
-    children: [
-      Flexible(
-        flex: 2, // ✅ logo ka space control
-        child: Image.asset(
-          'assets/logo.png',
-          height: 50,
-          fit: BoxFit.contain,
-        ),
-      ),
-      const SizedBox(width: 8),
-      Expanded(
-        flex: 5, // ✅ text ka space control
-        child: FittedBox(
-          fit: BoxFit.scaleDown, // ✅ screen size ke hisaab se adjust hoga
-          child: Text(
-            "श्री अ.भा.सा जैन संघ",
-            style: GoogleFonts.amita(
-              color: Colors.white,
-              fontSize: 26, // ✅ base size, chhoti screen pe auto scale down
-              fontWeight: FontWeight.w600,
+          appBar: AppBar(
+            automaticallyImplyLeading: false,
+            backgroundColor: const Color(0xFF1E3A8A),
+            systemOverlayStyle: const SystemUiOverlayStyle(
+              statusBarColor: Color(0xFF1E3A8A),
+              statusBarIconBrightness: Brightness.light,
             ),
+            title: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Flexible(
+                  flex: 2,
+                  child: Image.asset('assets/logo.png', height: 50, fit: BoxFit.contain),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  flex: 5,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      "श्री अ.भा.सा जैन संघ",
+                      style: GoogleFonts.amita(
+                        color: Colors.white,
+                        fontSize: 26,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            centerTitle: true,
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.notifications, color: Colors.white, size: 28),
+                onPressed: () {
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationsScreen()));
+                },
+              ),
+            ],
           ),
-        ),
-      ),
-    ],
-  ),
-
-  centerTitle: true,
-
-  // ✅ Notification Bell
-  actions: [
-    IconButton(
-      icon: const Icon(Icons.notifications, color: Colors.white, size: 28),
-      onPressed: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => const NotificationsScreen(),
-          ),
-        );
-      },
-    ),
-  ],
-),
-
-
-
-          body: SafeArea( // ✅ safe insets
+          body: SafeArea(
             top: false, // AppBar already manages top
             child: _screens[_currentIndex],
           ),
@@ -255,15 +243,15 @@ class _HomeDashboardState extends State<HomeDashboard> {
   @override
   void initState() {
     super.initState();
-    loadMemberId();
+    _loadMemberId();
     _fetchAll();
   }
 
   Future<void> _fetchAll() async {
     await Future.wait([
-      fetchSliderImages(),
-      fetchLatestThought(),
-      fetchLatestVihar(),
+      _fetchSliderImages(),
+      _fetchLatestThought(),
+      _fetchLatestVihar(),
     ]);
   }
 
@@ -286,43 +274,64 @@ class _HomeDashboardState extends State<HomeDashboard> {
     });
   }
 
-  Future<void> fetchSliderImages() async {
-    try {
-      final response = await http.get(Uri.parse('https://website.sadhumargi.in/api/mobile-slider'));
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        setState(() {
-          imageList = List<String>.from(data.map((item) => "https://website.sadhumargi.in${item['image']}"));
-          isSliderLoading = false;
+  Future<void> _fetchSliderImages() async {
+  try {
+    final response = await http.get(Uri.parse('https://website.sadhumargi.in/api/mobile-slider'));
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      final urls = List<String>.from(data.map((item) => "https://website.sadhumargi.in${item['image']}"));
+
+      setState(() {
+        imageList = urls;
+        isSliderLoading = false;
+      });
+
+      // Precache all images (non-blocking, but helps render fast)
+      for (final url in imageList) {
+        precacheImage(NetworkImage(url), context).catchError((_) {
+          // ignore any single-image precache failure
         });
-        _startSliderAutoplay();
-      } else {
-        setState(() => isSliderLoading = false);
       }
-    } catch (_) {
+
+      _startSliderAutoplay();
+    } else {
       setState(() => isSliderLoading = false);
     }
+  } catch (_) {
+    setState(() => isSliderLoading = false);
   }
+}
 
-  Future<void> fetchLatestThought() async {
-    try {
-      final response = await http.get(Uri.parse('https://website.sadhumargi.in/api/latest-thought'));
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
+
+  // Replace your existing _fetchLatestThought() with this:
+Future<void> _fetchLatestThought() async {
+  try {
+    final response = await http.get(Uri.parse('https://website.sadhumargi.in/api/latest-thought'));
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      final String? createdAt = data['created_at'] as String?;
+      final String? thought = data['thought'] as String?;
+
+      debugPrint('fetchLatestThought -> created_at: $createdAt, thought: $thought');
+
+      if (mounted) {
         setState(() {
-          thoughtDate = data['date'];
-          thoughtText = data['thought'];
+          // keep null if not present, else full ISO string
+          thoughtDate = (createdAt != null && createdAt.trim().isNotEmpty) ? createdAt.trim() : null;
+          thoughtText = (thought != null && thought.trim().isNotEmpty) ? thought.trim() : '-';
           isThoughtLoading = false;
         });
-      } else {
-        setState(() => isThoughtLoading = false);
       }
-    } catch (_) {
-      setState(() => isThoughtLoading = false);
+    } else {
+      if (mounted) setState(() => isThoughtLoading = false);
     }
+  } catch (e) {
+    debugPrint('fetchLatestThought error: $e');
+    if (mounted) setState(() => isThoughtLoading = false);
   }
+}
 
-  Future<void> fetchLatestVihar() async {
+  Future<void> _fetchLatestVihar() async {
     try {
       final response = await http.get(Uri.parse('https://website.sadhumargi.in/api/vihar/latest'));
       if (response.statusCode == 200) {
@@ -341,7 +350,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
     }
   }
 
-  Future<void> loadMemberId() async {
+  Future<void> _loadMemberId() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() => memberId = prefs.getString('member_id'));
   }
@@ -359,6 +368,14 @@ class _HomeDashboardState extends State<HomeDashboard> {
             ? 3
             : 2;
 
+    // ✅ Slider height responsive
+    final double sliderHeight = width >= 900
+        ? 320
+        : width >= 720
+            ? 280
+            : math.max(180, width * 0.48);
+
+    // --- DASHBOARD ITEMS (6 grid cards) ---
     final List<Map<String, dynamic>> dashboardItems = [
       {"title": "ग्लोबल कार्ड", "image": "assets/images/mrm.jpg", "screen": MrmScreen(memberId: memberId!)},
       {"title": "श्री संघ", "image": "assets/11zon_resized.png", "screen": const shree.HomeScreen()},
@@ -367,13 +384,6 @@ class _HomeDashboardState extends State<HomeDashboard> {
       {"title": "विहार", "image": "assets/images/vihar_seva.jpg", "screen": const ViharScreen()},
       {"title": "अर्थ सहयोग", "image": "assets/images/donation.webp", "screen": const ArthSahyogScreen()},
     ];
-
-    // ✅ Slider height responsive (no cut on small screens)
-    final double sliderHeight = width >= 900
-        ? 320
-        : width >= 720
-            ? 280
-            : math.max(180, width * 0.48); // phones
 
     return RefreshIndicator(
       onRefresh: _fetchAll,
@@ -386,7 +396,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
             children: [
               const SizedBox(height: 8),
 
-              /// Slider (dynamic height)
+              /// ---- Slider (Yahi file me रहेगा) ----
               SizedBox(
                 height: sliderHeight,
                 child: ClipRRect(
@@ -403,8 +413,8 @@ class _HomeDashboardState extends State<HomeDashboard> {
                         )
                       else
                         Listener(
-                          onPointerDown: (_) => _sliderTimer?.cancel(), // pause on drag
-                          onPointerUp: (_) => _startSliderAutoplay(), // resume
+                          onPointerDown: (_) => _sliderTimer?.cancel(),
+                          onPointerUp: (_) => _startSliderAutoplay(),
                           child: PageView.builder(
                             controller: _pageController,
                             onPageChanged: (i) => setState(() => _currentSlide = i),
@@ -443,7 +453,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
                           ),
                         ),
 
-                      /// Dots
+                      // Dots
                       if (!isSliderLoading && imageList.isNotEmpty)
                         Positioned(
                           bottom: 10,
@@ -474,285 +484,32 @@ class _HomeDashboardState extends State<HomeDashboard> {
 
               const SizedBox(height: 20),
 
-              /// Grid (responsive columns)
-              GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: dashboardItems.length,
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: columns,
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 14,
-                  // Slightly taller cells on phones to avoid cut
-                  childAspectRatio: width >= 720 ? 1.0 : 0.9,
-                ),
-                itemBuilder: (context, index) {
-                  final item = dashboardItems[index];
-                  return _SquareCard(
-                    title: item["title"],
-                    imagePath: item["image"],
-                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => item["screen"])),
-                  );
-                },
+              /// ---- 6 Grid Cards (Split widget/file) ----
+              HomeGridCards(
+                columns: columns,
+                dashboardItems: dashboardItems,
               ),
 
               const SizedBox(height: 20),
 
-              /// Action Tiles
-              _ActionTile(
-                title: "संपर्क",
-                icon: Icons.phone,
-                iconColor: Colors.green,
-                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SamparkScreen())),
+              /// ---- Action Tiles + Info Cards (Split widget/file) ----
+              HomeInfoCards(
+                onTapSampark: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SamparkScreen())),
+                onTapPakhi: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PakhiKaPaanaScreen())),
+                onTapChaturmas: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ChaturmasSuchiScreen())),
+                thoughtDate: thoughtDate,
+                thoughtText: thoughtText,
+                isThoughtLoading: isThoughtLoading,
+                viharDate: viharDate,
+                viharThana: viharThana,
+                viharLocation: viharLocation,
+                isViharLoading: isViharLoading,
               ),
-              _ActionTile(
-                title: "पखी का पाना",
-                icon: Icons.calendar_month,
-                iconColor: Colors.orange,
-                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PakhiKaPaanaScreen())),
-              ),
-              _ActionTile(
-                title: "चातुर्मास सूची",
-                icon: Icons.menu_book,
-                iconColor: Colors.blue,
-                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ChaturmasSuchiScreen())),
-              ),
-
-              const SizedBox(height: 18),
-
-              /// Thought
-              isThoughtLoading
-                  ? const _SkeletonInfoBox()
-                  : _InfoBox(
-                      title: "🧠 आज का विचार",
-                      titleColor: kBlue,
-                      borderColor: kBlue,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          if (thoughtDate != null) Text("📅 $thoughtDate", style: AppStyle.caption),
-                          const SizedBox(height: 8),
-                          if (thoughtText != null)
-                            Text(
-                              thoughtText!,
-                              style: AppStyle.body.copyWith(fontStyle: FontStyle.italic, fontWeight: FontWeight.w600),
-                            ),
-                        ],
-                      ),
-                    ),
-
-              const SizedBox(height: 16),
-
-              /// Vihar
-              isViharLoading
-                  ? const _SkeletonInfoBox()
-                  : _InfoBox(
-                      title: "🔔 आज की विहार जानकारी",
-                      titleColor: const Color(0xFF2E7D32),
-                      borderColor: kBlue,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _iconRow(Icons.calendar_month, "तारीख: $viharDate"),
-                          const SizedBox(height: 6),
-                          _iconRow(Icons.place, "आदि थाना: $viharThana"),
-                          const SizedBox(height: 6),
-                          _iconRow(Icons.hotel, "रात्रि विश्राम हेतु: $viharLocation"),
-                        ],
-                      ),
-                    ),
 
               const SizedBox(height: 24),
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  static Widget _iconRow(IconData icon, String text) {
-    return Row(
-      children: [
-        Icon(icon, size: 18, color: Colors.grey),
-        const SizedBox(width: 8),
-        Expanded(child: Text(text, style: AppStyle.body, softWrap: true)),
-      ],
-    );
-  }
-}
-
-/// Square grid card — now fully responsive internally
-class _SquareCard extends StatelessWidget {
-  final String title;
-  final String imagePath;
-  final VoidCallback onTap;
-
-  const _SquareCard({required this.title, required this.imagePath, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (_, constraints) {
-        // Image box responsive: clamp between 96 and 140 based on cell width
-        final double boxSide = math.max(96, math.min(140, constraints.maxWidth * 0.72));
-
-        return Material(
-          color: Colors.transparent,
-          child: InkWell(
-            borderRadius: BorderRadius.circular(AppStyle.rLg),
-            onTap: onTap,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  height: boxSide,
-                  width: boxSide,
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(AppStyle.rLg),
-                    border: Border.all(color: AppStyle.blue, width: 1.5),
-                    boxShadow: AppStyle.shadow,
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(AppStyle.rMd),
-                    child: Image.asset(imagePath, fit: BoxFit.contain),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                SizedBox(
-                  width: constraints.maxWidth,
-                  child: Text(
-                    title,
-                    style: AppStyle.titleMd,
-                    textAlign: TextAlign.center,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    softWrap: true,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-/// Vertical action tile
-class _ActionTile extends StatelessWidget {
-  final String title;
-  final IconData icon;
-  final Color iconColor;
-  final VoidCallback onTap;
-
-  const _ActionTile({required this.title, required this.icon, required this.iconColor, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(AppStyle.rMd),
-        onTap: onTap,
-        child: Container(
-          margin: const EdgeInsets.only(bottom: 12),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(AppStyle.rMd),
-            border: Border.all(color: AppStyle.blue, width: 1.4),
-            boxShadow: AppStyle.shadow,
-          ),
-          child: Row(
-            children: [
-              Container(
-                height: 42,
-                width: 42,
-                decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: AppStyle.blue, width: 1)),
-                child: Icon(icon, size: 24, color: iconColor),
-              ),
-              const SizedBox(width: 12),
-              Expanded(child: Text(title, style: AppStyle.titleMd, maxLines: 1, overflow: TextOverflow.ellipsis)),
-              const Icon(Icons.arrow_forward_ios, size: 18, color: Colors.grey),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Reusable info box
-class _InfoBox extends StatelessWidget {
-  final String title;
-  final Color titleColor;
-  final Color borderColor;
-  final Widget child;
-
-  const _InfoBox({
-    required this.title,
-    required this.titleColor,
-    required this.borderColor,
-    required this.child,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(AppStyle.rLg),
-        boxShadow: AppStyle.shadow,
-        border: Border.all(color: borderColor, width: 1.5),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title, style: AppStyle.titleSm.copyWith(color: titleColor)),
-          const SizedBox(height: 10),
-          child,
-        ],
-      ),
-    );
-  }
-}
-
-/// Lightweight skeleton for loading
-class _SkeletonInfoBox extends StatelessWidget {
-  const _SkeletonInfoBox();
-
-  @override
-  Widget build(BuildContext context) {
-    Widget skel(double w, double h) => Container(
-          width: w,
-          height: h,
-          decoration: BoxDecoration(color: const Color(0xFFEFF2F7), borderRadius: BorderRadius.circular(8)),
-        );
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(AppStyle.rLg),
-        boxShadow: AppStyle.shadow,
-        border: Border.all(color: AppStyle.blue.withOpacity(.4), width: 1.2),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          skel(140, 14),
-          const SizedBox(height: 12),
-          skel(double.infinity, 12),
-          const SizedBox(height: 8),
-          skel(double.infinity, 12),
-          const SizedBox(height: 8),
-          skel(180, 12),
-        ],
       ),
     );
   }

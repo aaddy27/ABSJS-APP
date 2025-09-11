@@ -2,6 +2,10 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/services.dart'; // <-- for Clipboard
+
+// Import your BaseScaffold
+import 'base_scaffold.dart';
 
 class AddressScreen extends StatefulWidget {
   const AddressScreen({super.key});
@@ -38,15 +42,101 @@ class _AddressScreenState extends State<AddressScreen> with TickerProviderStateM
   int? editId;
   String? memberId;
 
+  // Cache keys
+  static const _kCachePrimary = 'cache_primaryAddress';
+  static const _kCacheSaved = 'cache_savedAddresses';
+  static const _kCacheCountries = 'cache_countries';
+  static const _kCacheStatesPrefix = 'cache_states_'; // + isoCode
+
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
-    loadMemberIdAndData();
-    loadCountries();
+    _loadCachedThenRefresh();
   }
 
-  // --- API and Data Functions (No major changes here, just loading state management) ---
+  /// Load cached values first (if any), then call network refresh in background.
+  Future<void> _loadCachedThenRefresh() async {
+    setState(() => _isLoading = true);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+
+      // Load memberId first (still needed to fetch API)
+      final rawMemberId = prefs.getString('member_id');
+      if (rawMemberId != null && int.tryParse(rawMemberId) != null) {
+        final actualId = int.parse(rawMemberId) - 100000;
+        memberId = actualId.toString();
+      }
+
+      // Load cached primary
+      final primaryJson = prefs.getString(_kCachePrimary);
+      if (primaryJson != null) {
+        try {
+          final decoded = jsonDecode(primaryJson);
+          setState(() => primaryAddress = decoded);
+        } catch (_) {}
+      }
+
+      // Load cached saved addresses
+      final savedJson = prefs.getString(_kCacheSaved);
+      if (savedJson != null) {
+        try {
+          final decoded = jsonDecode(savedJson);
+          if (decoded is List) setState(() => savedAddresses = decoded);
+        } catch (_) {}
+      }
+
+      // Load cached countries
+      final countriesJson = prefs.getString(_kCacheCountries);
+      if (countriesJson != null) {
+        try {
+          final decoded = jsonDecode(countriesJson);
+          if (decoded is List) setState(() => countries = List<String>.from(decoded));
+        } catch (_) {}
+      }
+
+      // Now trigger background refreshes (do not block UI)
+      _refreshAllFromNetwork();
+    } catch (e) {
+      // On any cache read error, still try to refresh network
+      _refreshAllFromNetwork();
+    } finally {
+      // Keep loading indicator only until first background refresh completes
+      setState(() {});
+    }
+  }
+
+  Future<void> _refreshAllFromNetwork() async {
+    setState(() => _isLoading = true);
+    try {
+      if (memberId == null) {
+        final prefs = await SharedPreferences.getInstance();
+        final rawMemberId = prefs.getString('member_id');
+        if (rawMemberId != null && int.tryParse(rawMemberId) != null) {
+          final actualId = int.parse(rawMemberId) - 100000;
+          memberId = actualId.toString();
+        }
+      }
+
+      final futures = <Future>[];
+      futures.add(loadCountries());
+      if (memberId != null) {
+        futures.add(loadPrimaryAddress());
+        futures.add(loadSavedAddresses());
+      }
+      await Future.wait(futures);
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  // Helper to extract ISO code from "Name|ISO"
+  String _countryIso(String countryValue) {
+    final parts = countryValue.split('|');
+    return parts.length > 1 ? parts[1] : '';
+  }
+
+  // --- API and Data Functions (modified to save cache) ---
 
   Future<void> markAsPrimary(String addressId) async {
     final url = Uri.parse("https://mrmapi.sadhumargi.in/api/mark-primary/$addressId");
@@ -83,55 +173,59 @@ class _AddressScreenState extends State<AddressScreen> with TickerProviderStateM
     }
   }
 
-  Future<void> loadMemberIdAndData() async {
-    setState(() => _isLoading = true);
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final rawMemberId = prefs.getString('member_id');
-      if (rawMemberId != null && int.tryParse(rawMemberId) != null) {
-        final actualId = int.parse(rawMemberId) - 100000;
-        memberId = actualId.toString();
-        await loadPrimaryAddress();
-        await loadSavedAddresses();
-      }
-    } catch (e) {
-      showToast("Failed to load user data: $e", isError: true);
-    } finally {
-      setState(() => _isLoading = false);
-    }
-  }
-
   Future<void> loadPrimaryAddress() async {
     if (memberId == null) return;
     final url = 'https://mrmapi.sadhumargi.in/api/primary-address/$memberId';
-    final res = await http.get(Uri.parse(url));
-    if (res.statusCode == 200) {
-      setState(() => primaryAddress = jsonDecode(res.body));
+    try {
+      final res = await http.get(Uri.parse(url));
+      if (res.statusCode == 200) {
+        final decoded = jsonDecode(res.body);
+        setState(() => primaryAddress = decoded);
+        final prefs = await SharedPreferences.getInstance();
+        prefs.setString(_kCachePrimary, jsonEncode(decoded));
+      }
+    } catch (e) {
+      // keep cached value
     }
   }
 
   Future<void> loadSavedAddresses() async {
     if (memberId == null) return;
     final url = 'https://mrmapi.sadhumargi.in/api/addresses/$memberId';
-    final res = await http.get(Uri.parse(url));
-    if (res.statusCode == 200) {
-      setState(() => savedAddresses = jsonDecode(res.body));
+    try {
+      final res = await http.get(Uri.parse(url));
+      if (res.statusCode == 200) {
+        final decoded = jsonDecode(res.body);
+        if (decoded is List) {
+          setState(() => savedAddresses = decoded);
+          final prefs = await SharedPreferences.getInstance();
+          prefs.setString(_kCacheSaved, jsonEncode(decoded));
+        }
+      }
+    } catch (e) {
+      // keep cached savedAddresses
     }
   }
 
   Future<void> loadCountries() async {
     final url = Uri.parse('https://api.countrystatecity.in/v1/countries');
-    final response = await http.get(
-      url,
-      headers: {
-        'X-CSCAPI-KEY': 'S2dBYnJldWtmRFM4U2VUdG9Fd0hiRXp2RjhpTm81YlhVVThiWEdiTA==',
-      },
-    );
-    if (response.statusCode == 200) {
-      final List data = jsonDecode(response.body);
-      final names = data.map<String>((c) => "${c['name']}|${c['iso2']}").toList();
-      names.sort();
-      setState(() => countries = names);
+    try {
+      final response = await http.get(
+        url,
+        headers: {
+          'X-CSCAPI-KEY': 'S2dBYnJldWtmRFM4U2VUdG9Fd0hiRXp2RjhpTm81YlhVVThiWEdiTA==',
+        },
+      );
+      if (response.statusCode == 200) {
+        final List data = jsonDecode(response.body);
+        final names = data.map<String>((c) => "${c['name']}|${c['iso2']}").toList();
+        names.sort();
+        setState(() => countries = names);
+        final prefs = await SharedPreferences.getInstance();
+        prefs.setString(_kCacheCountries, jsonEncode(names));
+      }
+    } catch (e) {
+      // keep cached countries if present
     }
   }
 
@@ -141,19 +235,32 @@ class _AddressScreenState extends State<AddressScreen> with TickerProviderStateM
     if (isoCode.isEmpty) return;
 
     final url = Uri.parse('https://api.countrystatecity.in/v1/countries/$isoCode/states');
-    final response = await http.get(
-      url,
-      headers: {
-        'X-CSCAPI-KEY': 'S2dBYnJldWtmRFM4U2VUdG9Fd0hiRXp2RjhpTm81YlhVVThiWEdiTA==',
-      },
-    );
-    if (response.statusCode == 200) {
-      final List data = jsonDecode(response.body);
-      final stateNames = data.map<String>((s) => "${s['name']}|${s['id']}").toList();
-      setState(() => states = stateNames);
+    try {
+      final response = await http.get(
+        url,
+        headers: {
+          'X-CSCAPI-KEY': 'S2dBYnJldWtmRFM4U2VUdG9Fd0hiRXp2RjhpTm81YlhVVThiWEdiTA==',
+        },
+      );
+      if (response.statusCode == 200) {
+        final List data = jsonDecode(response.body);
+        final stateNames = data.map<String>((s) => "${s['name']}|${s['id']}").toList();
+        setState(() => states = stateNames);
+        final prefs = await SharedPreferences.getInstance();
+        prefs.setString('$_kCacheStatesPrefix$isoCode', jsonEncode(stateNames));
+      }
+    } catch (e) {
+      final prefs = await SharedPreferences.getInstance();
+      final cached = prefs.getString('$_kCacheStatesPrefix$isoCode');
+      if (cached != null) {
+        try {
+          final decoded = jsonDecode(cached);
+          if (decoded is List) setState(() => states = List<String>.from(decoded));
+        } catch (_) {}
+      }
     }
   }
-  
+
   Future<void> saveOrUpdateAddress() async {
     if (!formKey.currentState!.validate() || memberId == null) return;
 
@@ -238,7 +345,7 @@ class _AddressScreenState extends State<AddressScreen> with TickerProviderStateM
       ),
     );
     if (confirmed != true) return;
-    
+
     setState(() => _isLoading = true);
     final url = 'https://mrmapi.sadhumargi.in/api/delete-address/$id';
     try {
@@ -256,7 +363,7 @@ class _AddressScreenState extends State<AddressScreen> with TickerProviderStateM
       setState(() => _isLoading = false);
     }
   }
-  
+
   void resetForm() {
     formKey.currentState?.reset();
     controllers.forEach((_, c) => c.clear());
@@ -268,7 +375,7 @@ class _AddressScreenState extends State<AddressScreen> with TickerProviderStateM
       editId = null;
     });
   }
-  
+
   void showToast(String message, {bool isError = false}) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -281,24 +388,19 @@ class _AddressScreenState extends State<AddressScreen> with TickerProviderStateM
   // --- UI Build Methods ---
   @override
   Widget build(BuildContext context) {
-    const primaryColor = Color(0xFF0D47A1); // A professional deep blue
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Address Management'),
-        backgroundColor: primaryColor,
-        foregroundColor: Colors.white,
-        elevation: 4,
-      ),
+    // Use BaseScaffold here, index 5 (Profile) so bottom nav highlights Profile
+    return BaseScaffold(
+      selectedIndex: 5,
       body: Column(
         children: [
+          // TabBar only, no refresh button
           Container(
-            color: primaryColor.withOpacity(0.1),
+            color: Colors.white,
             child: TabBar(
               controller: _tabController,
-              labelColor: primaryColor,
+              labelColor: Colors.blue.shade800,
               unselectedLabelColor: Colors.grey.shade600,
-              indicatorColor: primaryColor,
+              indicatorColor: Colors.blue.shade800,
               indicatorWeight: 3.0,
               tabs: const [
                 Tab(icon: Icon(Icons.star), text: 'Primary'),
@@ -324,85 +426,272 @@ class _AddressScreenState extends State<AddressScreen> with TickerProviderStateM
     );
   }
 
-  // Tab 1: Primary Address View
+  // Tab 1: Primary Address View (UI/UX improved, Call button removed)
   Widget buildPrimaryAddressView() {
-    if (primaryAddress == null) {
+    // If no primary address, show friendly CTA to add one
+    if (primaryAddress == null || (primaryAddress!.isEmpty)) {
       return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.mail_outline, size: 80, color: Colors.grey.shade400),
-            const SizedBox(height: 16),
-            const Text(
-              "No Primary Address Set",
-              style: TextStyle(fontSize: 20, color: Colors.grey),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              "You can set one from your saved addresses.",
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 16, color: Colors.grey),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return Center(
-      child: Container(
-        margin: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
-          gradient: LinearGradient(
-            colors: [Colors.blue.shade800, Colors.blue.shade500],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.2),
-              blurRadius: 15,
-              offset: const Offset(0, 10),
-            ),
-          ],
-        ),
         child: Padding(
-          padding: const EdgeInsets.all(24.0),
+          padding: const EdgeInsets.symmetric(horizontal: 24.0),
           child: Column(
             mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Row(
-                children: [
-                  Icon(Icons.home, color: Colors.white, size: 30),
-                  SizedBox(width: 12),
-                  Text(
-                    "Primary Address",
-                    style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white),
-                  ),
-                ],
-              ),
-              const Divider(color: Colors.white54, height: 30),
-              Text(
-                "${primaryAddress!['address1']}, ${primaryAddress!['address2']}",
-                style: const TextStyle(fontSize: 16, color: Colors.white, height: 1.5),
+              Icon(Icons.location_off, size: 88, color: Colors.grey.shade400),
+              const SizedBox(height: 18),
+              const Text(
+                "No Primary Address",
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.black87),
               ),
               const SizedBox(height: 8),
-              Text(
-                "${primaryAddress!['city']}, ${primaryAddress!['district']} - ${primaryAddress!['pincode']}",
-                style: const TextStyle(fontSize: 16, color: Colors.white, height: 1.5),
+              const Text(
+                "You don't have a primary address yet. Add one so it's quick to access for calls or directions.",
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 15, color: Colors.black54),
               ),
-              const SizedBox(height: 8),
-              Text(
-                "${primaryAddress!['state']}, ${primaryAddress!['country']}",
-                style: const TextStyle(fontSize: 16, color: Colors.white, height: 1.5),
+              const SizedBox(height: 18),
+              ElevatedButton.icon(
+                icon: const Icon(Icons.add_location_alt_outlined),
+                label: const Text("Add Address"),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  backgroundColor: const Color(0xFF0D47A1),
+                ),
+                onPressed: () {
+                  // switch to Add/Update tab
+                  _tabController.animateTo(1);
+                },
               ),
             ],
           ),
         ),
+      );
+    }
+
+    // Build the improved card
+    final addr = primaryAddress!;
+    final addressLines = [
+      addr['address1'] ?? '',
+      addr['address2'] ?? '',
+      if ((addr['landmark'] ?? '').toString().isNotEmpty) 'Landmark: ${addr['landmark']}',
+      '${addr['city'] ?? ''}, ${addr['district'] ?? ''} - ${addr['pincode'] ?? ''}',
+      '${addr['state'] ?? ''}, ${addr['country'] ?? ''}',
+    ].where((s) => s.trim().isNotEmpty).join('\n');
+
+    final contact = addr['contact_number']?.toString() ?? '';
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        children: [
+          // Card
+          Container(
+            width: double.infinity,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(colors: [Color(0xFF2196F3), Color(0xFF0D47A1)]),
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.14), blurRadius: 12, offset: const Offset(0, 8))],
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(18.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Header row: Title + Address Type badge
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(Icons.home, color: Colors.white, size: 30),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              "Primary Address",
+                              style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              addr['address_type']?.toString() ?? '',
+                              style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 13),
+                            ),
+                          ],
+                        ),
+                      ),
+                      // small badge
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.white24,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Row(
+                          children: const [
+                            Icon(Icons.star, color: Colors.amber, size: 16),
+                            SizedBox(width: 6),
+                            Text("Primary", style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 14),
+
+                  // Address text (tappable to copy)
+                  GestureDetector(
+                    onTap: () async {
+                      await Clipboard.setData(ClipboardData(text: addressLines));
+                      showToast("Copied address to clipboard");
+                    },
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            addressLines,
+                            style: const TextStyle(color: Colors.white, fontSize: 15, height: 1.4),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 14),
+
+                  // Contact chip & small meta row
+                  Row(
+                    children: [
+                      if (contact.isNotEmpty)
+                        ActionChip(
+                          avatar: const Icon(Icons.phone, size: 18, color: Colors.white),
+                          label: Text(contact, style: const TextStyle(color: Colors.white)),
+                          onPressed: () {
+                            // open edit tab with details filled
+                            for (final k in controllers.keys) {
+                              controllers[k]?.text = addr[k]?.toString() ?? '';
+                            }
+                            setState(() {
+                              selectedCountry = countries.firstWhere(
+                                (c) => c.split('|').first == (addr['country'] ?? ''),
+                                orElse: () => '',
+                              );
+                              editId = addr['id'];
+                              selectedAddressType = addr['address_type'] ?? 'Factory';
+                            });
+                            _tabController.animateTo(1);
+                          },
+                          backgroundColor: Colors.white24,
+                        ),
+                      const Spacer(),
+                      // Small hint
+                      Text(
+                        "Tap address to copy",
+                        style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 12),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // Action buttons row (Call removed)
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.start,
+                    children: [
+                      ElevatedButton.icon(
+                        icon: const Icon(Icons.edit_outlined),
+                        label: const Text("Edit"),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          foregroundColor: Colors.blue.shade800,
+                          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                        onPressed: () {
+                          // pre-fill controllers and go to edit tab
+                          for (final k in controllers.keys) {
+                            controllers[k]?.text = addr[k]?.toString() ?? '';
+                          }
+
+                          final countryString = countries.firstWhere(
+                            (c) => c.split('|').first == (addr['country'] ?? ''),
+                            orElse: () => '',
+                          );
+
+                          setState(() {
+                            selectedCountry = countryString;
+                            editId = addr['id'];
+                            selectedAddressType = addr['address_type'] ?? 'Factory';
+                          });
+
+                          if (countryString.isNotEmpty) {
+                            final iso = _countryIso(countryString);
+                            _tryLoadCachedStates(iso).then((_) => loadStates(countryString)).then((_) {
+                              setState(() {
+                                selectedState = states.firstWhere(
+                                  (s) => s.split('|').last == (addr['state']?.toString() ?? ''),
+                                  orElse: () => '',
+                                );
+                              });
+                            });
+                          }
+                          _tabController.animateTo(1);
+                        },
+                      ),
+
+                      const SizedBox(width: 8),
+
+                      ElevatedButton.icon(
+                        icon: const Icon(Icons.copy_outlined),
+                        label: const Text("Copy"),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white24,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                        onPressed: () async {
+                          await Clipboard.setData(ClipboardData(text: addressLines));
+                          showToast("Copied address to clipboard");
+                        },
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 18),
+
+          // Small helper card suggesting "Saved Addresses" quick access
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade50,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.grey.shade200),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.list_alt, color: Colors.black54),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    "Want to change which address is primary? Go to Saved tab and tap the star on an address to mark it primary.",
+                    style: TextStyle(color: Colors.grey.shade800, fontSize: 14),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () => _tabController.animateTo(2),
+                  child: const Text("Open Saved"),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -440,7 +729,7 @@ class _AddressScreenState extends State<AddressScreen> with TickerProviderStateM
               label: 'Pincode *',
               icon: Icons.pin_outlined,
               keyboardType: TextInputType.number),
-          
+
           const SizedBox(height: 12),
           // Country Dropdown
           DropdownButtonFormField<String>(
@@ -456,6 +745,8 @@ class _AddressScreenState extends State<AddressScreen> with TickerProviderStateM
                 selectedCountry = v;
                 selectedState = '';
                 states = [];
+                final iso = _countryIso(v);
+                _tryLoadCachedStates(iso);
                 loadStates(v);
               });
             },
@@ -501,6 +792,21 @@ class _AddressScreenState extends State<AddressScreen> with TickerProviderStateM
         ],
       ),
     );
+  }
+
+  // Try to load cached states for an iso code (fast)
+  Future<void> _tryLoadCachedStates(String isoCode) async {
+    if (isoCode.isEmpty) return;
+    final prefs = await SharedPreferences.getInstance();
+    final cached = prefs.getString('$_kCacheStatesPrefix$isoCode');
+    if (cached != null) {
+      try {
+        final decoded = jsonDecode(cached);
+        if (decoded is List) {
+          setState(() => states = List<String>.from(decoded));
+        }
+      } catch (_) {}
+    }
   }
 
   // Tab 3: Saved Address List
@@ -551,10 +857,10 @@ class _AddressScreenState extends State<AddressScreen> with TickerProviderStateM
                 ListTile(
                   contentPadding: const EdgeInsets.symmetric(horizontal: 10),
                   title: Text(
-                    "${a['address1']}, ${a['address2']}",
+                    "${a['address1'] ?? ''}, ${a['address2'] ?? ''}",
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
-                  subtitle: Text("${a['city']}, ${a['state']} - ${a['pincode']}"),
+                  subtitle: Text("${a['city'] ?? ''}, ${a['state'] ?? ''} - ${a['pincode'] ?? ''}"),
                   leading: Icon(
                     Icons.location_on,
                     color: Colors.blue.shade700,
@@ -576,36 +882,35 @@ class _AddressScreenState extends State<AddressScreen> with TickerProviderStateM
                         )
                       else
                         const SizedBox(), // To maintain space
-                      
+
                       Row(
                         children: [
                           IconButton(
                             icon: const Icon(Icons.edit, color: Colors.blueAccent),
                             tooltip: 'Edit',
                             onPressed: () async {
-                              // Pre-fill controllers
                               for (final k in controllers.keys) {
                                 controllers[k]?.text = a[k]?.toString() ?? '';
                               }
 
-                              // Pre-select country
                               final countryString = countries.firstWhere(
-                                (c) => c.split('|').first == a['country'],
+                                (c) => c.split('|').first == (a['country'] ?? ''),
                                 orElse: () => '',
                               );
-                              
+
                               setState(() {
                                 selectedCountry = countryString;
                                 editId = a['id'];
                                 selectedAddressType = a['address_type'] ?? 'Factory';
                               });
 
-                              // Load states for the country and then select the state
                               if (countryString.isNotEmpty) {
+                                final iso = _countryIso(countryString);
+                                await _tryLoadCachedStates(iso);
                                 await loadStates(countryString);
                                 setState(() {
                                   selectedState = states.firstWhere(
-                                    (s) => s.split('|').last == a['state'].toString(),
+                                    (s) => s.split('|').last == (a['state']?.toString() ?? ''),
                                     orElse: () => '',
                                   );
                                 });
