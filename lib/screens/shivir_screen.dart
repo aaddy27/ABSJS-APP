@@ -22,7 +22,7 @@ class _ShivirScreenState extends State<ShivirScreen> {
   Future<void> _fetchShivirs() async {
     try {
       final response = await http.get(
-        Uri.parse('https://website.sadhumargi.in/api/shivir'),
+        Uri.parse('https://website.sadhumargi.in/api/shivir'  ),
       );
       if (response.statusCode == 200) {
         List<dynamic> result = json.decode(response.body);
@@ -120,7 +120,7 @@ class _ShivirScreenState extends State<ShivirScreen> {
         child: Padding(
           padding: EdgeInsets.all(16.0),
           child: Text(
-            "कार्य प्रगति पर है, सहयोग बनाए रखें। धन्यवाद!",
+            "वर्तमान में कोई शिविर संचालित नहीं हो रहा है।",
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
           ),

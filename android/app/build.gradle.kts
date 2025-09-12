@@ -1,4 +1,5 @@
 import java.util.Properties
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
     id("com.android.application")
@@ -10,27 +11,28 @@ plugins {
 
 android {
     namespace = "com.sabsjs.laravel_auth_flutter"
-
+    ndkVersion = "28.0.13004108"
     // Flutter-managed
     compileSdk = flutter.compileSdkVersion
 
     compileOptions {
-        // ✅ Java 11 + Desugaring enable
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
+        // Keep compile target at Java 17 (safe for AGP). Gradle will run using org.gradle.java.home JDK.
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
         isCoreLibraryDesugaringEnabled = true
     }
 
+    // Kotlin options for Android compilation
     kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_11.toString()
+        jvmTarget = "17"
     }
 
     defaultConfig {
         applicationId = "com.sabsjs.laravel_auth_flutter"
         minSdk = 29
         targetSdk = flutter.targetSdkVersion
-        versionCode = 8
-        versionName = "1.8.0"
+        versionCode = 10    
+        versionName = "1.10.0"
         // multiDexEnabled = true
     }
 
@@ -74,6 +76,11 @@ flutter {
 }
 
 dependencies {
-    // ✅ Required for flutter_local_notifications (Java 8+ APIs on old Android versions)
-    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
+    // Required for flutter_local_notifications (Java 8+ APIs on old Android versions)
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+}
+
+// Ensure Kotlin compile tasks also target JVM 17
+tasks.withType(KotlinCompile::class.java).configureEach {
+    kotlinOptions.jvmTarget = "17"
 }

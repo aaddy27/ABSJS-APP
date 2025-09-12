@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
-import 'package:webview_flutter/webview_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'base_scaffold.dart';
 
 class ViharScreen extends StatefulWidget {
@@ -16,26 +16,23 @@ class _ViharScreenState extends State<ViharScreen> {
   DateTime selectedDate = DateTime.now();
   List<dynamic> viharData = [];
   bool isLoading = false;
-  bool isHtml = false;
+  bool triedOpenExternal = false;
   String htmlUrl = '';
 
-  late final WebViewController _webViewController;
+  // Browser-like UA (helps bypass some WAF rules)
+  static const String _browserLikeUA =
+      'Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Mobile Safari/537.36';
 
   @override
   void initState() {
     super.initState();
-
-    // Enable hybrid composition for Android WebView
-    _webViewController = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted);
-
     fetchViharData();
   }
 
   Future<void> fetchViharData() async {
     setState(() {
       isLoading = true;
-      isHtml = false;
+      triedOpenExternal = false;
     });
 
     final formattedDate = DateFormat('yyyy-MM-dd').format(selectedDate);
@@ -43,42 +40,79 @@ class _ViharScreenState extends State<ViharScreen> {
     htmlUrl = url;
 
     try {
-      final response = await http.get(Uri.parse(url), headers: {
-        "Accept": "application/json",
-        "User-Agent": "Flutter-App",
-      });
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {
+          "Accept": "application/json",
+          "User-Agent": _browserLikeUA,
+        },
+      );
 
       print("API URL: $url");
       print("Response Status: ${response.statusCode}");
 
       if (response.statusCode == 200) {
-        if (response.body.trimLeft().startsWith("<!DOCTYPE html")) {
-          print("⚠️ HTML response received instead of JSON");
-          isHtml = true;
+        final body = response.body ?? '';
+        final trimmed = body.trimLeft();
+
+        // अगर HTML response मिला → सीधे external browser में खोल दो
+        if (trimmed.startsWith("<!DOCTYPE html") || trimmed.startsWith('<html')) {
+          print("HTML received — opening external browser: $url");
+          await _openInExternalBrowser(url);
+          // mark that we attempted external open so UI can show message
+          triedOpenExternal = true;
           viharData = [];
-          _webViewController.loadRequest(Uri.parse(htmlUrl));
         } else {
-          final parsed = json.decode(response.body);
-          if (parsed is List) {
-            viharData = parsed;
-            print("✅ ${viharData.length} items loaded");
-          } else {
-            print("⚠️ Invalid JSON format (not List)");
+          // कोशिश करो JSON parse करने की
+          try {
+            final parsed = json.decode(body);
+            if (parsed is List) {
+              viharData = parsed;
+              print("Loaded ${viharData.length} items");
+            } else {
+              print("JSON parsed but not a List. Showing empty.");
+              viharData = [];
+            }
+          } catch (e) {
+            print("JSON parse error: $e — opening external browser as fallback.");
+            // JSON parse failed — open external browser
+            await _openInExternalBrowser(url);
+            triedOpenExternal = true;
             viharData = [];
           }
         }
       } else {
-        print("❌ Server Error: ${response.statusCode}");
+        print("Server error ${response.statusCode} — trying to open external browser as fallback.");
+        await _openInExternalBrowser(url);
+        triedOpenExternal = true;
         viharData = [];
       }
     } catch (e) {
-      print("❌ Exception: $e");
+      print("Exception while fetching: $e — opening external browser as fallback.");
+      await _openInExternalBrowser(url);
+      triedOpenExternal = true;
       viharData = [];
     }
 
-    setState(() {
-      isLoading = false;
-    });
+    if (mounted) {
+      setState(() {
+        isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _openInExternalBrowser(String url) async {
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else {
+      // अगर external open न हो पाए तो user को बताओ
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('बाहरी ब्राउज़र खोलने में विफल।')),
+        );
+      }
+    }
   }
 
   Future<void> _selectDate(BuildContext context) async {
@@ -131,20 +165,38 @@ class _ViharScreenState extends State<ViharScreen> {
               ],
             ),
             const SizedBox(height: 20),
+
             if (isLoading)
               const Expanded(child: Center(child: CircularProgressIndicator()))
-            else if (isHtml)
+            else if (triedOpenExternal)
               Expanded(
-                child: WebViewWidget(controller: _webViewController),
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.open_in_browser, size: 64, color: Colors.blue),
+                      const SizedBox(height: 12),
+                      const Text(
+                        "यह सामग्री ब्राउज़र में खुल गयी है।\nयदि ब्राउज़र नहीं खुला, तो नीचे बटन से फिर खोलें।",
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 12),
+                      ElevatedButton(
+                        onPressed: () => _openInExternalBrowser(htmlUrl),
+                        child: const Text("ब्राउज़र में फिर खोलें"),
+                      ),
+                    ],
+                  ),
+                ),
               )
             else if (viharData.isEmpty)
-              const Expanded(child: Center(child: Text("कोई डेटा नहीं मिला")))
+              Expanded(child: Center(child: Text("कोई डेटा नहीं मिला", style: TextStyle(color: Colors.grey.shade700))))
             else
               Expanded(
                 child: ListView.builder(
                   itemCount: viharData.length,
                   itemBuilder: (context, index) {
-                    final item = viharData[index];
+                    final item = viharData[index] as Map<String, dynamic>;
                     return Card(
                       elevation: 3,
                       margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
@@ -176,7 +228,7 @@ class _ViharScreenState extends State<ViharScreen> {
     );
   }
 
-  Widget _row(String label, String? value) {
+  Widget _row(String label, dynamic value) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
       child: Row(
@@ -187,7 +239,7 @@ class _ViharScreenState extends State<ViharScreen> {
             style: const TextStyle(fontWeight: FontWeight.w600),
           ),
           Expanded(
-            child: Text(value ?? ''),
+            child: Text(value?.toString() ?? ''),
           ),
         ],
       ),

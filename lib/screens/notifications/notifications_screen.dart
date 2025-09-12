@@ -22,9 +22,9 @@ class NotificationsScreen extends StatelessWidget {
                 labelColor: Colors.white,
                 unselectedLabelColor: Colors.white70,
                 tabs: [
-                  Tab(text: "Shree Sangh"),
-                  Tab(text: "Mahila Samiti"),
-                  Tab(text: "Yuva Sangh"),
+                  Tab(text: "श्री संघ"),
+                  Tab(text: "महिला समिति"),
+                  Tab(text: "युवा संघ"),
                 ],
               ),
             ),

@@ -1,38 +1,45 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'dart:ui' as ui;
+import 'dart:async';
 
 class ShreeSanghNotificationsScreen extends StatefulWidget {
   const ShreeSanghNotificationsScreen({super.key});
 
   @override
-  State<ShreeSanghNotificationsScreen> createState() => _ShreeSanghNotificationsScreenState();
+  State<ShreeSanghNotificationsScreen> createState() =>
+      _ShreeSanghNotificationsScreenState();
 }
 
-class _ShreeSanghNotificationsScreenState extends State<ShreeSanghNotificationsScreen> {
+class _ShreeSanghNotificationsScreenState
+    extends State<ShreeSanghNotificationsScreen> {
   List notifications = [];
   bool isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    fetchNotifications();
+  }
 
   Future<void> fetchNotifications() async {
     try {
       final response = await http.get(
-        Uri.parse("https://website.sadhumargi.in/api/notifications/filter?group=Shree%20Sangh"),
+        Uri.parse(
+            "https://website.sadhumargi.in/api/notifications/filter?group=Shree%20Sangh"),
       );
       if (response.statusCode == 200) {
         setState(() {
           notifications = json.decode(response.body);
           isLoading = false;
         });
+      } else {
+        setState(() => isLoading = false);
       }
     } catch (e) {
       setState(() => isLoading = false);
     }
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    fetchNotifications();
   }
 
   @override
@@ -49,11 +56,12 @@ class _ShreeSanghNotificationsScreenState extends State<ShreeSanghNotificationsS
       padding: const EdgeInsets.all(12),
       itemCount: notifications.length,
       itemBuilder: (context, index) {
-        final item = notifications[index];
+        final item = notifications[index] as Map<String, dynamic>;
         final String title = item["title"] ?? "";
         final String body = item["body"] ?? "";
         final String? imageUrl = item["image"];
-        final String date = item["created_at"].toString().split("T").first;
+        final String date =
+            (item["created_at"] ?? "").toString().split("T").first;
 
         return Card(
           margin: const EdgeInsets.symmetric(vertical: 8),
@@ -62,7 +70,7 @@ class _ShreeSanghNotificationsScreenState extends State<ShreeSanghNotificationsS
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // ✅ Title
+                // Title
                 Text(
                   title,
                   style: const TextStyle(
@@ -72,29 +80,24 @@ class _ShreeSanghNotificationsScreenState extends State<ShreeSanghNotificationsS
                 ),
                 const SizedBox(height: 6),
 
-                // ✅ Body with See More
+                // Body with See More
                 _buildBodyText(context, title, body, imageUrl),
 
-                // ✅ Image (if available)
+                // Image (if available) — auto-resizing WITHOUT cropping
                 if (imageUrl != null) ...[
                   const SizedBox(height: 8),
                   GestureDetector(
                     onTap: () => _showFullImage(context, imageUrl),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(8),
-                      child: Image.network(
-                        imageUrl,
-                        height: 150,
-                        width: double.infinity,
-                        fit: BoxFit.cover,
-                      ),
+                      child: _buildSafeImage(imageUrl),
                     ),
                   ),
                 ],
 
                 const SizedBox(height: 6),
 
-                // ✅ Date
+                // Date
                 Align(
                   alignment: Alignment.centerRight,
                   child: Text(
@@ -110,8 +113,9 @@ class _ShreeSanghNotificationsScreenState extends State<ShreeSanghNotificationsS
     );
   }
 
-  // ✅ Text with See More
-  Widget _buildBodyText(BuildContext context, String title, String body, String? imageUrl) {
+  // Text with See More
+  Widget _buildBodyText(
+      BuildContext context, String title, String body, String? imageUrl) {
     const maxLines = 3;
 
     if (body.split(" ").length > 20 || body.length > 100) {
@@ -129,7 +133,8 @@ class _ShreeSanghNotificationsScreenState extends State<ShreeSanghNotificationsS
               padding: EdgeInsets.only(top: 4.0),
               child: Text(
                 "See More",
-                style: TextStyle(color: Colors.blue, fontWeight: FontWeight.w600),
+                style:
+                    TextStyle(color: Colors.blue, fontWeight: FontWeight.w600),
               ),
             ),
           ),
@@ -140,8 +145,9 @@ class _ShreeSanghNotificationsScreenState extends State<ShreeSanghNotificationsS
     return Text(body);
   }
 
-  // ✅ Full message modal
-  void _showFullMessage(BuildContext context, String title, String body, String? imageUrl) {
+  // Full message modal
+  void _showFullMessage(
+      BuildContext context, String title, String body, String? imageUrl) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -173,7 +179,7 @@ class _ShreeSanghNotificationsScreenState extends State<ShreeSanghNotificationsS
                     onTap: () => _showFullImage(context, imageUrl),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(10),
-                      child: Image.network(imageUrl),
+                      child: Image.network(urlFormatter(imageUrl)),
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -194,7 +200,7 @@ class _ShreeSanghNotificationsScreenState extends State<ShreeSanghNotificationsS
     );
   }
 
-  // ✅ Fullscreen image viewer
+  // Fullscreen image viewer with aspect-fit
   void _showFullImage(BuildContext context, String url) {
     showDialog(
       context: context,
@@ -204,11 +210,169 @@ class _ShreeSanghNotificationsScreenState extends State<ShreeSanghNotificationsS
           color: Colors.black,
           child: Center(
             child: InteractiveViewer(
-              child: Image.network(url),
+              child: Image.network(
+                urlFormatter(url),
+                fit: BoxFit.contain,
+                loadingBuilder: (context, child, progress) {
+                  if (progress == null) return child;
+                  return const SizedBox(
+                    height: 200,
+                    child: Center(child: CircularProgressIndicator()),
+                  );
+                },
+                errorBuilder: (context, error, stack) {
+                  return const Icon(Icons.broken_image, color: Colors.white);
+                },
+              ),
             ),
           ),
         ),
       ),
     );
+  }
+
+  // Ensure URL absolute
+  String urlFormatter(String raw) {
+    if (raw.startsWith("http://") || raw.startsWith("https://")) return raw;
+    return "https://website.sadhumargi.in$raw";
+  }
+
+  /// CORE: Build image safely so it never gets cropped.
+  /// Strategy:
+  ///  - First resolve natural image size (ui.Image).
+  ///  - Calculate desiredHeight based on available width and natural aspect ratio:
+  ///       desiredHeight = availableWidth * (imgH / imgW)
+  ///  - Cap desiredHeight to a sensible maximum so cards don't become huge.
+  ///  - Use BoxFit.contain inside a SizedBox with that height so the whole image is visible.
+  Widget _buildSafeImage(String imageUrl) {
+    final formatted = urlFormatter(imageUrl);
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final availableWidth = constraints.maxWidth; // full card width
+        // FutureBuilder to resolve image dimensions
+        return FutureBuilder<ui.Image?>(
+          future: _resolveImage(formatted),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState != ConnectionState.done) {
+              return SizedBox(
+                width: double.infinity,
+                height: 150,
+                child: const Center(child: CircularProgressIndicator()),
+              );
+            }
+
+            final img = snapshot.data;
+            if (img == null) {
+              // fallback simple image (contain)
+              return _fallbackContainImage(formatted);
+            }
+
+            final imgW = img.width.toDouble();
+            final imgH = img.height.toDouble();
+            if (imgW == 0 || imgH == 0) return _fallbackContainImage(formatted);
+
+            // desired height to show full image without cropping
+            double desiredHeight = availableWidth * (imgH / imgW);
+
+            // cap heights (tune as needed)
+            const double maxPortraitHeight = 520; // if portrait, don't exceed this
+            const double maxLandscapeHeight = 280; // landscape images don't need to be tall
+
+            final bool isPortrait = imgH > imgW;
+
+            if (isPortrait) {
+              // portrait: cap to maxPortraitHeight
+              if (desiredHeight > maxPortraitHeight) desiredHeight = maxPortraitHeight;
+            } else {
+              // landscape: cap to maxLandscapeHeight
+              if (desiredHeight > maxLandscapeHeight) desiredHeight = maxLandscapeHeight;
+            }
+
+            // Return a container that shows the full image (BoxFit.contain)
+            return SizedBox(
+              width: double.infinity,
+              height: desiredHeight,
+              child: Container(
+                color: Colors.grey.shade100,
+                child: Center(
+                  child: Image.network(
+                    formatted,
+                    fit: BoxFit.contain, // ensure no cropping
+                    width: availableWidth,
+                    height: desiredHeight,
+                    loadingBuilder: (context, child, progress) {
+                      if (progress == null) return child;
+                      return const Center(child: CircularProgressIndicator());
+                    },
+                    errorBuilder: (context, error, stack) {
+                      return Container(
+                        color: Colors.grey.shade200,
+                        child: const Center(
+                          child: Icon(Icons.broken_image, size: 40, color: Colors.grey),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // Fallback: show image with contain and default height
+  Widget _fallbackContainImage(String formattedUrl) {
+    return SizedBox(
+      width: double.infinity,
+      height: 180,
+      child: Container(
+        color: Colors.grey.shade100,
+        child: Center(
+          child: Image.network(
+            formattedUrl,
+            fit: BoxFit.contain,
+            width: double.infinity,
+            height: 180,
+            loadingBuilder: (context, child, progress) {
+              if (progress == null) return child;
+              return const Center(child: CircularProgressIndicator());
+            },
+            errorBuilder: (context, error, stack) {
+              return Container(
+                color: Colors.grey.shade200,
+                child: const Center(
+                  child: Icon(Icons.broken_image, size: 40, color: Colors.grey),
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Resolve network image to get natural dimensions
+  Future<ui.Image?> _resolveImage(String url) {
+    final completer = Completer<ui.Image?>();
+    try {
+      final provider = NetworkImage(url);
+      final config = const ImageConfiguration();
+      final stream = provider.resolve(config);
+      late ImageStreamListener listener;
+      listener = ImageStreamListener((ImageInfo info, bool _) {
+        completer.complete(info.image);
+        stream.removeListener(listener);
+      }, onError: (err, stack) {
+        completer.complete(null);
+        stream.removeListener(listener);
+      });
+      stream.addListener(listener);
+    } catch (e) {
+      completer.complete(null);
+    }
+    return completer.future;
   }
 }
