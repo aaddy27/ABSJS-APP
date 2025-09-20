@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'base_scaffold.dart';
@@ -29,64 +30,123 @@ class ArthSahyogScreen extends StatelessWidget {
     }
   }
 
+  // Show full image from asset at exact 344x495 inside a dialog
+  void _showFullImageAsset(BuildContext context, String assetPath, {String? title}) {
+    showDialog(
+      context: context,
+      builder: (_) => Dialog(
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Top row with optional title and close button
+            Row(
+              children: [
+                if (title != null)
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      child: Text(
+                        title,
+                        style: GoogleFonts.kalam(fontSize: 18, fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                  )
+                else
+                  const Spacer(),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+              ],
+            ),
+
+            // The image with exact requested dimensions (344 x 495)
+            SizedBox(
+              width: 344,
+              height: 495,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.asset(
+                  assetPath,
+                  fit: BoxFit.contain, // contain => show whole image, no crop
+                  errorBuilder: (ctx, err, stack) => Container(
+                    color: Colors.grey.shade200,
+                    alignment: Alignment.center,
+                    child: const Icon(Icons.broken_image, size: 48),
+                  ),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 12),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
       length: 3, // 🔹 अब 3 tabs होंगे
       child: BaseScaffold(
         selectedIndex: -1,
-        body: Column(
-          children: [
-            // 🔹 App Heading
-            Container(
-              color: Colors.deepOrange.shade50,
-              child: Column(
-                children: [
-                  const SizedBox(height: 20),
-                  Text(
-                    "अर्थ सहयोग",
-                    style: GoogleFonts.amita(
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.deepOrange.shade800,
+        body: SafeArea(
+          child: Column(
+            children: [
+              // 🔹 App Heading
+              Container(
+                color: Colors.deepOrange.shade50,
+                child: Column(
+                  children: [
+                    const SizedBox(height: 20),
+                    Text(
+                      "अर्थ सहयोग",
+                      style: GoogleFonts.amita(
+                        fontSize: 32,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.deepOrange.shade800,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 10),
+                    const SizedBox(height: 10),
 
-                  // 🔹 TabBar
-                  TabBar(
-                    labelColor: Colors.deepOrange,
-                    unselectedLabelColor: Colors.grey,
-                    indicatorColor: Colors.deepOrange,
-                    tabs: const [
-                      Tab(text: "मुख्य पृष्ठ"),
-                      Tab(text: "दान"),
-                      Tab(text: "इदम् न मम"),
-                    ],
-                  ),
-                ],
+                    // 🔹 TabBar
+                    TabBar(
+                      labelColor: Colors.deepOrange,
+                      unselectedLabelColor: Colors.grey,
+                      indicatorColor: Colors.deepOrange,
+                      tabs: const [
+                        Tab(text: "मुख्य पृष्ठ"),
+                        Tab(text: "दान"),
+                        Tab(text: "इदम् न मम"),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
 
-            // 🔹 Tab Views
-            Expanded(
-              child: TabBarView(
-                children: [
-                  // पहला Tab → Arth Main Page
-                  ArthMainTab(
-                    launchDonationPortal: _launchDonationPortal,
-                    launchRazorpayButton: _launchRazorpayButton,
-                  ),
+              // 🔹 Tab Views
+              Expanded(
+                child: TabBarView(
+                  children: [
+                    // पहला Tab → Arth Main Page
+                    ArthMainTab(
+                      launchDonationPortal: _launchDonationPortal,
+                      launchRazorpayButton: _launchRazorpayButton,
+                      onShowFullImage: (asset, title) => _showFullImageAsset(context, asset, title: title),
+                    ),
 
-                  // दूसरा Tab → Donations
-                  const DonationsScreen(),
+                    // दूसरा Tab → Donations
+                    const DonationsScreen(),
 
-                  // तीसरा Tab → Idam Na Mam
-                  const IdamNaMamScreen(),
-                ],
+                    // तीसरा Tab → Idam Na Mam
+                    const IdamNaMamScreen(),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -97,26 +157,45 @@ class ArthSahyogScreen extends StatelessWidget {
 class ArthMainTab extends StatelessWidget {
   final Future<void> Function() launchDonationPortal;
   final Future<void> Function() launchRazorpayButton;
+  final void Function(String assetPath, String? title) onShowFullImage;
 
   const ArthMainTab({
     super.key,
     required this.launchDonationPortal,
     required this.launchRazorpayButton,
+    required this.onShowFullImage,
   });
 
   @override
   Widget build(BuildContext context) {
+    // responsive inline QR size: up to 344 but keep comfortable for small screens
+    final mq = MediaQuery.of(context);
+    final double maxAvailableWidth = mq.size.width - 48; // padding considered
+    final double qrInlineSize = min(344, maxAvailableWidth * 0.7); // responsive; <=344
+
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16.0),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // Banner Image
-          ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: Image.asset(
-              'assets/images/donation.webp',
-              fit: BoxFit.cover,
+          // Banner Image (tappable -> full 344x495)
+          GestureDetector(
+            onTap: () => onShowFullImage('assets/images/donation.webp', 'Donation Banner'),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Image.asset(
+                'assets/images/donation.webp',
+                fit: BoxFit.cover,
+                width: double.infinity,
+                height: 160, // compact banner visible in page
+                errorBuilder: (ctx, err, st) => Container(
+                  width: double.infinity,
+                  height: 160,
+                  color: Colors.grey.shade200,
+                  alignment: Alignment.center,
+                  child: const Icon(Icons.broken_image, size: 48),
+                ),
+              ),
             ),
           ),
           const SizedBox(height: 20),
@@ -129,14 +208,42 @@ class ArthMainTab extends StatelessWidget {
           ),
           const SizedBox(height: 20),
 
-          // QR Code
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: Image.asset(
-              'assets/images/donor_portal_qr.png',
-              width: 180,
-              height: 180,
-              fit: BoxFit.cover,
+          // QR Code (tappable -> full 344x495)
+          // IMPORTANT: use BoxFit.contain and a white background with border so QR is never cropped
+          GestureDetector(
+            onTap: () => onShowFullImage('assets/images/sbinew.JPG', 'QR Code'),
+            child: Center(
+              child: Container(
+                width: qrInlineSize,
+                height: qrInlineSize, // keep square for QR
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.white, // keep white background so QR contrast is preserved
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.06),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                  border: Border.all(color: Colors.grey.shade300, width: 1),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: Image.asset(
+                    'assets/images/sbinew.JPG',
+                    fit: BoxFit.contain, // contain ensures full QR visible (no crop)
+                    width: qrInlineSize,
+                    height: qrInlineSize,
+                    errorBuilder: (ctx, err, st) => Container(
+                      color: Colors.grey.shade200,
+                      alignment: Alignment.center,
+                      child: const Icon(Icons.broken_image, size: 48),
+                    ),
+                  ),
+                ),
+              ),
             ),
           ),
           const SizedBox(height: 15),

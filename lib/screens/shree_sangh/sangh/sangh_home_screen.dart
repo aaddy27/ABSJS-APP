@@ -1,11 +1,13 @@
+// lib/screens/shree_sangh/sangh/sangh_home_screen.dart
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../base_scaffold.dart';
 
-// ✅ Import 5 destination screens
+// ✅ Import 6 destination screens (added vp_sec_screen)
 import 'vivarnika_screen.dart';
 import 'ex_president_screen.dart';
 import 'current_pst_screen.dart';
+import 'vp_sec_screen.dart';
 import 'ksm_member_screen.dart';
 import 'padhadhikari_parikshan_karyashala_screen.dart';
 
@@ -99,6 +101,22 @@ class SanghHomeScreen extends StatelessWidget {
                     );
                   },
                 ),
+
+                // --- NEW: VP SEC card (placed after वर्तमान कार्यकारिणी) ---
+                OptionCard(
+                  title: 'VP Sec',
+                  icon: Icons.how_to_reg,
+                  color: Colors.indigo,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const VpSecScreen(),
+                      ),
+                    );
+                  },
+                ),
+
                 OptionCard(
                   title: 'कार्यसमिति सदस्य',
                   icon: Icons.account_tree_outlined,

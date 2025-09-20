@@ -21,6 +21,8 @@ class _AchievementsScreenState extends State<AchievementsScreen> with SingleTick
   String? selectedField, selectedLevel, selectedType, selectedYear;
   int? editingId;
 
+  bool isLoading = true;
+  bool isSaving = false;
   List<Map<String, dynamic>> achievements = [];
 
   final Map<String, String> fieldMap = {
@@ -72,6 +74,10 @@ class _AchievementsScreenState extends State<AchievementsScreen> with SingleTick
   }
 
   Future<void> fetchAchievements() async {
+    setState(() {
+      isLoading = true;
+    });
+
     SharedPreferences prefs = await SharedPreferences.getInstance();
     String? memberIdStr = prefs.getString('member_id');
 
@@ -83,13 +89,30 @@ class _AchievementsScreenState extends State<AchievementsScreen> with SingleTick
         final response = await http.get(Uri.parse(url));
         if (response.statusCode == 200) {
           final List<dynamic> data = jsonDecode(response.body);
+          if (!mounted) return;
           setState(() {
             achievements = List<Map<String, dynamic>>.from(data);
+            isLoading = false;
+          });
+        } else {
+          if (!mounted) return;
+          setState(() {
+            achievements = [];
+            isLoading = false;
           });
         }
       } catch (e) {
+        if (!mounted) return;
         debugPrint("Exception: $e");
+        setState(() {
+          isLoading = false;
+        });
       }
+    } else {
+      if (!mounted) return;
+      setState(() {
+        isLoading = false;
+      });
     }
   }
 
@@ -104,38 +127,57 @@ class _AchievementsScreenState extends State<AchievementsScreen> with SingleTick
       return;
     }
 
-    int adjustedId = int.parse(memberIdStr) - 100000;
+    setState(() {
+      isSaving = true;
+    });
 
-    final data = {
-      'member_id': adjustedId,
-      'achievement_sector': selectedField,
-      'achievement_level': selectedLevel,
-      'achievement_type': selectedType,
-      'achievement_year': selectedYear ?? '',
-      'achievement_detail': detailsController.text.trim(),
-    };
+    try {
+      int adjustedId = int.parse(memberIdStr) - 100000;
 
-    final url = editingId == null
-        ? 'https://mrmapi.sadhumargi.in/api/achievement'
-        : 'https://mrmapi.sadhumargi.in/api/achievement/$editingId';
+      final data = {
+        'member_id': adjustedId,
+        'achievement_sector': selectedField,
+        'achievement_level': selectedLevel,
+        'achievement_type': selectedType,
+        'achievement_year': selectedYear ?? '',
+        'achievement_detail': detailsController.text.trim(),
+      };
 
-    final response = await (editingId == null
-        ? http.post(Uri.parse(url), headers: {'Content-Type': 'application/json'}, body: jsonEncode(data))
-        : http.put(Uri.parse(url), headers: {'Content-Type': 'application/json'}, body: jsonEncode(data)));
+      final url = editingId == null
+          ? 'https://mrmapi.sadhumargi.in/api/achievement'
+          : 'https://mrmapi.sadhumargi.in/api/achievement/$editingId';
 
-    if (response.statusCode == 200 || response.statusCode == 201) {
+      final response = await (editingId == null
+          ? http.post(Uri.parse(url), headers: {'Content-Type': 'application/json', 'Accept': 'application/json'}, body: jsonEncode(data))
+          : http.put(Uri.parse(url), headers: {'Content-Type': 'application/json', 'Accept': 'application/json'}, body: jsonEncode(data)));
+
+      if (!mounted) return;
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(editingId == null ? '✅ उपलब्धि जोड़ी गई' : '✅ उपलब्धि अपडेट की गई'),
+          backgroundColor: Colors.green,
+        ));
+        clearForm();
+        await fetchAchievements();
+        _tabController.animateTo(1);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('❌ प्रक्रिया विफल रही: ${response.statusCode}'),
+          backgroundColor: Colors.red,
+        ));
+      }
+    } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(editingId == null ? '✅ उपलब्धि जोड़ी गई' : '✅ उपलब्धि अपडेट की गई'),
-        backgroundColor: Colors.green,
-      ));
-      clearForm();
-      await fetchAchievements();
-      _tabController.animateTo(1);
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('❌ प्रक्रिया विफल रही'),
+        content: Text('🔴 नेटवर्क त्रुटि: $e'),
         backgroundColor: Colors.red,
       ));
+    } finally {
+      if (!mounted) return;
+      setState(() {
+        isSaving = false;
+      });
     }
   }
 
@@ -153,16 +195,26 @@ class _AchievementsScreenState extends State<AchievementsScreen> with SingleTick
     );
 
     if (confirmed == true) {
-      final response = await http.delete(Uri.parse('https://mrmapi.sadhumargi.in/api/achievement/$id'));
-      if (response.statusCode == 200) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('🗑️ उपलब्धि हटाई गई'),
-          backgroundColor: Colors.orange,
-        ));
-        await fetchAchievements();
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('हटाने में त्रुटि'),
+      if (isSaving) return; // prevent delete while saving
+      try {
+        final response = await http.delete(Uri.parse('https://mrmapi.sadhumargi.in/api/achievement/$id'));
+        if (!mounted) return;
+        if (response.statusCode == 200) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('🗑️ उपलब्धि हटाई गई'),
+            backgroundColor: Colors.orange,
+          ));
+          await fetchAchievements();
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('हटाने में त्रुटि'),
+            backgroundColor: Colors.red,
+          ));
+        }
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('🔴 नेटवर्क त्रुटि: $e'),
           backgroundColor: Colors.red,
         ));
       }
@@ -170,6 +222,7 @@ class _AchievementsScreenState extends State<AchievementsScreen> with SingleTick
   }
 
   void editAchievement(Map<String, dynamic> data) {
+    if (isSaving) return; // prevent editing while saving
     setState(() {
       editingId = data['id'];
       selectedField = data['achievement_sector'];
@@ -206,7 +259,7 @@ class _AchievementsScreenState extends State<AchievementsScreen> with SingleTick
           child: Text(entry.value),
         );
       }).toList(),
-      onChanged: onChanged,
+      onChanged: isSaving ? null : onChanged,
     );
   }
 
@@ -214,6 +267,7 @@ class _AchievementsScreenState extends State<AchievementsScreen> with SingleTick
     return TextFormField(
       controller: controller,
       onChanged: onChanged,
+      enabled: !isSaving,
       decoration: InputDecoration(
         labelText: label,
         prefixIcon: icon,
@@ -243,15 +297,24 @@ class _AchievementsScreenState extends State<AchievementsScreen> with SingleTick
               const SizedBox(height: 12),
               buildTextField('विवरण *', const Icon(Icons.description), controller: detailsController),
               const SizedBox(height: 20),
-              ElevatedButton.icon(
-                icon: Icon(editingId == null ? Icons.add : Icons.save),
-                label: Text(editingId == null ? 'प्रोफ़ाइल में जोड़ें' : 'अपडेट करें'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.teal,
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  icon: isSaving
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                        )
+                      : Icon(editingId == null ? Icons.add : Icons.save),
+                  label: Text(isSaving ? (editingId == null ? 'जोड़ रहा है...' : 'अपडेट कर रहा है...') : (editingId == null ? 'प्रोफ़ाइल में जोड़ें' : 'अपडेट करें')),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.teal,
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  onPressed: isSaving ? null : submitAchievement,
                 ),
-                onPressed: submitAchievement,
               ),
             ],
           ),
@@ -261,6 +324,10 @@ class _AchievementsScreenState extends State<AchievementsScreen> with SingleTick
   }
 
   Widget buildListTab() {
+    if (isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
     return Container(
       padding: const EdgeInsets.all(12),
       child: achievements.isEmpty
@@ -299,11 +366,11 @@ class _AchievementsScreenState extends State<AchievementsScreen> with SingleTick
                       children: [
                         IconButton(
                           icon: const Icon(Icons.edit, color: Colors.blue),
-                          onPressed: () => editAchievement(data),
+                          onPressed: isSaving ? null : () => editAchievement(data),
                         ),
                         IconButton(
                           icon: const Icon(Icons.delete, color: Colors.red),
-                          onPressed: () => deleteAchievement(data['id']),
+                          onPressed: isSaving ? null : () => deleteAchievement(data['id']),
                         ),
                       ],
                     ),
@@ -388,6 +455,26 @@ class _AchievementsScreenState extends State<AchievementsScreen> with SingleTick
                 shouldLoop: false,
               ),
             ),
+
+            // Full-screen loading overlay while saving
+            if (isSaving)
+              Positioned.fill(
+                child: AbsorbPointer(
+                  absorbing: true,
+                  child: Container(
+                    color: Colors.black.withOpacity(0.35),
+                    alignment: Alignment.center,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: const [
+                        CircularProgressIndicator(),
+                        SizedBox(height: 12),
+                        Text('कृपया प्रतीक्षा करें...', style: TextStyle(color: Colors.white)),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
           ],
         ),
       ),

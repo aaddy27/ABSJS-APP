@@ -1,3 +1,4 @@
+// main.dart
 import 'dart:io';
 import 'dart:convert';
 import 'package:flutter/material.dart';
@@ -17,21 +18,58 @@ import 'screens/home_screen.dart';
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
     FlutterLocalNotificationsPlugin();
 
-/// 🔹 Background Notification Handler
+/// 🔹 Background Notification Handler (top-level)
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
-  print("Background Message: ${message.notification?.title}");
+  // Note: background isolate cannot run complex UI - but system handles notification when notification payload used.
+  print("Background Message: ${message.messageId} | ${message.notification?.title}");
 }
 
-/// 🔹 Local Notifications Setup
+/// 🔹 Notification Channel constants
+const String defaultChannelId = 'default_channel';
+const String defaultChannelName = 'General Notifications';
+const String defaultChannelDesc = 'All app notifications (with custom sound)';
+
+/// 🔹 Local Notifications & Channel Setup
 Future<void> setupFlutterNotifications() async {
+  // Android init with small icon (use a valid drawable)
   const AndroidInitializationSettings initializationSettingsAndroid =
-      AndroidInitializationSettings('@drawable/ic_notification'); // ✅ permanent small icon
+      AndroidInitializationSettings('@mipmap/ic_launcher');
 
-  const InitializationSettings initializationSettings =
-      InitializationSettings(android: initializationSettingsAndroid);
+  // iOS init (request permission will be handled separately)
+  final DarwinInitializationSettings initializationSettingsIOS =
+      DarwinInitializationSettings(
+    requestSoundPermission: true,
+    requestAlertPermission: true,
+    requestBadgePermission: true,
+  );
 
-  await flutterLocalNotificationsPlugin.initialize(initializationSettings);
+  final InitializationSettings initializationSettings = InitializationSettings(
+    android: initializationSettingsAndroid,
+    iOS: initializationSettingsIOS,
+  );
+
+  await flutterLocalNotificationsPlugin.initialize(
+    initializationSettings,
+    onDidReceiveNotificationResponse: (NotificationResponse response) {
+      // handle click
+      print('Notification tapped, payload: ${response.payload}');
+    },
+  );
+
+  // Create Android notification channel with custom sound resource 'custom_sound'
+  final AndroidNotificationChannel channel = AndroidNotificationChannel(
+    defaultChannelId,
+    defaultChannelName,
+    description: defaultChannelDesc,
+    importance: Importance.high,
+    sound: RawResourceAndroidNotificationSound('custom_sound'),
+  );
+
+  await flutterLocalNotificationsPlugin
+      .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>()
+      ?.createNotificationChannel(channel);
 }
 
 /// 🔹 Helper: Download remote image and save locally
@@ -51,13 +89,13 @@ void main() async {
   // 🔹 Background Notifications
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
-  // 🔹 Local Notifications Setup
+  // 🔹 Local Notifications Setup (create channel, etc.)
   await setupFlutterNotifications();
 
   runApp(const MyApp());
 }
 
-/// 🔹 Force Update Wrapper
+/// 🔹 Force Update Wrapper (unchanged except small cosmetic tweaks)
 class UpdateChecker extends StatefulWidget {
   final Widget child;
   const UpdateChecker({super.key, required this.child});
@@ -77,7 +115,6 @@ class _UpdateCheckerState extends State<UpdateChecker> {
     _checkForUpdate();
   }
 
-  /// ✅ Helper: Compare versions correctly
   bool isVersionOlder(String current, String latest) {
     List<String> c = current.split('.');
     List<String> l = latest.split('.');
@@ -86,10 +123,10 @@ class _UpdateCheckerState extends State<UpdateChecker> {
       int currentPart = i < c.length ? int.tryParse(c[i]) ?? 0 : 0;
       int latestPart = int.tryParse(l[i]) ?? 0;
 
-      if (currentPart < latestPart) return true;  // Installed purana hai
-      if (currentPart > latestPart) return false; // Installed naya hai
+      if (currentPart < latestPart) return true;
+      if (currentPart > latestPart) return false;
     }
-    return false; // Equal case
+    return false;
   }
 
   Future<void> _checkForUpdate() async {
@@ -97,7 +134,7 @@ class _UpdateCheckerState extends State<UpdateChecker> {
       final response =
           await http.get(Uri.parse("https://website.sadhumargi.in/api/latest-version"));
       if (response.statusCode == 200) {
-        final latestVersion = jsonDecode(response.body)['version_code'];
+        final latestVersion = jsonDecode(response.body)['version_code']?.toString() ?? '';
         final packageInfo = await PackageInfo.fromPlatform();
         final currentVersion = packageInfo.version;
 
@@ -124,7 +161,7 @@ class _UpdateCheckerState extends State<UpdateChecker> {
   Widget build(BuildContext context) {
     if (_showUpdate) {
       return WillPopScope(
-        onWillPop: () async => false, // ❌ Disable back button
+        onWillPop: () async => false,
         child: Scaffold(
           body: Container(
             width: double.infinity,
@@ -139,12 +176,9 @@ class _UpdateCheckerState extends State<UpdateChecker> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // 🔹 Update Illustration
                   const Icon(Icons.system_update_alt,
                       size: 120, color: Colors.white),
                   const SizedBox(height: 30),
-
-                  // 🔹 Title
                   const Text(
                     "Update Required 🚀",
                     style: TextStyle(
@@ -154,10 +188,7 @@ class _UpdateCheckerState extends State<UpdateChecker> {
                     ),
                     textAlign: TextAlign.center,
                   ),
-
                   const SizedBox(height: 10),
-
-                  // 🔹 Subtitle
                   Text(
                     "A new version of the app is available.\nPlease update to continue.",
                     style: TextStyle(
@@ -166,10 +197,7 @@ class _UpdateCheckerState extends State<UpdateChecker> {
                     ),
                     textAlign: TextAlign.center,
                   ),
-
                   const SizedBox(height: 25),
-
-                  // 🔹 Version Info
                   if (_latestVersion != null && _currentVersion != null)
                     Container(
                       padding: const EdgeInsets.symmetric(
@@ -186,10 +214,7 @@ class _UpdateCheckerState extends State<UpdateChecker> {
                         ),
                       ),
                     ),
-
                   const SizedBox(height: 40),
-
-                  // 🔹 Update Button
                   ElevatedButton(
                     onPressed: () async {
                       final url = Uri.parse(
@@ -256,11 +281,30 @@ class NotificationService {
   static final FirebaseMessaging _messaging = FirebaseMessaging.instance;
 
   static Future<void> initNotifications(BuildContext context) async {
-    // 🔹 iOS ke liye permission
-    await _messaging.requestPermission();
+    // 🔹 Request permissions (iOS mostly)
+    NotificationSettings settings = await _messaging.requestPermission(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
+    print('FCM permission: ${settings.authorizationStatus}');
 
-    // 🔹 Topic Subscribe (allUsers)
+    // 🔹 Subscribe to a topic
     await _messaging.subscribeToTopic("allUsers");
+
+    // 🔹 Ensure our channel exists (redundant if created in main, but safe)
+    final AndroidNotificationChannel channel = AndroidNotificationChannel(
+      defaultChannelId,
+      defaultChannelName,
+      description: defaultChannelDesc,
+      importance: Importance.high,
+      sound: RawResourceAndroidNotificationSound('custom_sound'),
+    );
+
+    await flutterLocalNotificationsPlugin
+        .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>()
+        ?.createNotificationChannel(channel);
 
     // 🔹 Foreground message listener
     FirebaseMessaging.onMessage.listen((RemoteMessage message) async {
@@ -268,58 +312,87 @@ class NotificationService {
       final imageUrl =
           notification?.android?.imageUrl ?? notification?.apple?.imageUrl;
 
+      // Prepare platform-specific details ensuring custom sound is used
+      final AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+        defaultChannelId,
+        defaultChannelName,
+        channelDescription: defaultChannelDesc,
+        importance: Importance.high,
+        priority: Priority.high,
+        playSound: true,
+        sound: RawResourceAndroidNotificationSound('custom_sound'),
+        icon: '@mipmap/ic_launcher',
+      );
+
+      final DarwinNotificationDetails iosDetails = DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+        sound: 'custom_sound.mp3', // must exist in app bundle for iOS
+      );
+
       if (notification != null) {
         if (imageUrl != null && imageUrl.isNotEmpty) {
-          // ✅ Agar image hai to download karo aur show karo
-          final String bigPicturePath =
-              await _downloadAndSaveFile(imageUrl, 'bigPicture.jpg');
+          // Download big image and show big picture style
+          try {
+            final String bigPicturePath =
+                await _downloadAndSaveFile(imageUrl, 'bigPicture.jpg');
 
-          final bigPictureStyle = BigPictureStyleInformation(
-            FilePathAndroidBitmap(bigPicturePath),
-            largeIcon: const DrawableResourceAndroidBitmap(
-                '@drawable/ic_notification'),
-            contentTitle: notification.title,
-            summaryText: notification.body,
-          );
+            final BigPictureStyleInformation bigPictureStyle =
+                BigPictureStyleInformation(
+              FilePathAndroidBitmap(bigPicturePath),
+              largeIcon: const DrawableResourceAndroidBitmap('@mipmap/ic_launcher'),
+              contentTitle: notification.title,
+              summaryText: notification.body,
+            );
 
-          final androidDetails = AndroidNotificationDetails(
-            'default_channel',
-            'General Notifications',
-            channelDescription: 'All Notifications',
-            importance: Importance.high,
-            priority: Priority.high,
-            styleInformation: bigPictureStyle,
-          );
+            final AndroidNotificationDetails bigAndroidDetails =
+                AndroidNotificationDetails(
+              androidDetails.channelId,
+              androidDetails.channelName,
+              channelDescription: androidDetails.channelDescription,
+              importance: androidDetails.importance,
+              priority: androidDetails.priority,
+              playSound: androidDetails.playSound,
+              sound: androidDetails.sound,
+              icon: androidDetails.icon,
+              styleInformation: bigPictureStyle,
+            );
 
-          await flutterLocalNotificationsPlugin.show(
-            notification.hashCode,
-            notification.title,
-            notification.body,
-            NotificationDetails(android: androidDetails),
-          );
+            await flutterLocalNotificationsPlugin.show(
+              notification.hashCode,
+              notification.title,
+              notification.body,
+              NotificationDetails(
+                android: bigAndroidDetails,
+                iOS: iosDetails,
+              ),
+            );
+          } catch (e) {
+            // fallback to simple notification if image download fails
+            await flutterLocalNotificationsPlugin.show(
+              notification.hashCode,
+              notification.title,
+              notification.body,
+              NotificationDetails(android: androidDetails, iOS: iosDetails),
+            );
+          }
         } else {
-          // ✅ Agar image nahi hai to normal notification
-          const androidDetails = AndroidNotificationDetails(
-            'default_channel',
-            'General Notifications',
-            channelDescription: 'All Notifications',
-            importance: Importance.high,
-            priority: Priority.high,
-          );
-
+          // normal notification
           await flutterLocalNotificationsPlugin.show(
             notification.hashCode,
             notification.title,
             notification.body,
-            const NotificationDetails(android: androidDetails),
+            NotificationDetails(android: androidDetails, iOS: iosDetails),
           );
         }
       }
     });
 
-    // 🔹 Jab notification click karke app open ho
+    // 🔹 Notification tapped (app opened from background)
     FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
       print("Notification Clicked: ${message.notification?.title}");
+      // navigation logic if required
     });
   }
 }

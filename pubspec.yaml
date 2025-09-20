@@ -10,35 +10,35 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  image_picker: ^1.0.2  
+  image_picker: ^1.2.0  
   http: ^1.5.0
-  shared_preferences: ^2.2.2
+  shared_preferences: ^2.5.3
   cupertino_icons: ^1.0.8
   flutter_native_splash: ^2.4.6  
-  carousel_slider: ^5.0.0
-  flutter_launcher_icons: ^0.14.3
-  font_awesome_flutter: ^10.7.0
-  url_launcher: ^6.1.10
+  carousel_slider: ^5.1.1
+  flutter_launcher_icons: ^0.14.4
+  font_awesome_flutter: ^10.9.1
+  url_launcher: ^6.3.2
   intl: ^0.20.2
   confetti: ^0.8.0
-  webview_flutter: ^4.7.0 
+  webview_flutter: ^4.13.0 
   image: ^4.1.7
   widget_to_image: ^2.0.0
   permission_handler: ^12.0.1
-  path_provider: ^2.1.1
+  path_provider: ^2.1.5
   qr_flutter: ^4.1.0
-  pdf: ^3.10.6
-  printing: ^5.12.0
-  awesome_dialog: ^3.0.2
+  pdf: ^3.11.3
+  printing: ^5.14.2
+  awesome_dialog: ^3.2.1
   google_fonts: ^6.3.1 
-  pdfx: ^2.0.3
+  pdfx: ^2.9.2
   flutter_linkify: ^6.0.0
   flutter_staggered_animations: ^1.1.1
   firebase_core: ^4.1.0
   firebase_messaging: ^16.0.1
-  flutter_local_notifications: ^19.4.1
-  package_info_plus: ^8.0.2
-  cached_network_image: ^3.2.3
+  flutter_local_notifications: ^19.4.2
+  package_info_plus: ^9.0.0
+  cached_network_image: ^3.4.1
   
 
 
@@ -82,6 +82,7 @@ flutter:
     - assets/images/yuva-r.png
     -  assets/11zon_resized.png
     - assets/pdf/vivarnika.pdf
+    - assets/images/sbinew.JPG
 
 # ✅ Splash Screen Configuration
 flutter_native_splash:

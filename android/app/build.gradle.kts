@@ -2,7 +2,7 @@ import java.util.Properties
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
-    id("com.android.application")
+    id("com.android.application")   
     id("kotlin-android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
@@ -31,8 +31,8 @@ android {
         applicationId = "com.sabsjs.laravel_auth_flutter"
         minSdk = 29
         targetSdk = flutter.targetSdkVersion
-        versionCode = 10    
-        versionName = "1.10.0"
+        versionCode = 12
+        versionName = "1.12.0"
         // multiDexEnabled = true
     }
 
@@ -68,6 +68,14 @@ android {
             )
         }
         getByName("debug") { /* default debug signing */ }
+    }
+
+    packagingOptions {
+        jniLibs {
+            // Use legacy packaging to keep the previous .so packaging behavior.
+            // This can help avoid issues where newer AGP packaging causes native libs to be compressed/misaligned.
+            useLegacyPackaging = false
+        }
     }
 }
 

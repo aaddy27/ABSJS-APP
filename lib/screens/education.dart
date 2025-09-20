@@ -14,6 +14,7 @@ class Education extends StatefulWidget {
 class _EducationState extends State<Education> with SingleTickerProviderStateMixin {
   List<dynamic> educationList = [];
   bool isLoading = true;
+  bool isSaving = false; // <-- saving loader state
   String? error;
   TabController? _tabController;
 
@@ -32,6 +33,16 @@ class _EducationState extends State<Education> with SingleTickerProviderStateMix
     fetchEducationData();
   }
 
+  @override
+  void dispose() {
+    _tabController?.dispose();
+    _descriptionController.dispose();
+    _scoreController.dispose();
+    _instituteController.dispose();
+    _yearController.dispose();
+    super.dispose();
+  }
+
   Future<int?> getComputedMemberId() async {
     final prefs = await SharedPreferences.getInstance();
     final rawId = prefs.get('member_id');
@@ -42,6 +53,7 @@ class _EducationState extends State<Education> with SingleTickerProviderStateMix
   Future<void> fetchEducationData() async {
     setState(() {
       isLoading = true;
+      error = null;
     });
 
     try {
@@ -79,63 +91,75 @@ class _EducationState extends State<Education> with SingleTickerProviderStateMix
 
   Future<void> _saveEducation() async {
     final computedId = await getComputedMemberId();
-    if (computedId == null || selectedEducation == null) {
+    if (computedId == null || selectedEducation == null || selectedEducation!.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('⚠️ कृपया सभी फ़ील्ड भरें')),
+        const SnackBar(content: Text('⚠️ कृपया शिक्षा चुनें और सभी आवश्यक फ़ील्ड भरें')),
       );
       return;
     }
 
-    final isEdit = editingId != null;
-    final url = isEdit
-        ? Uri.parse('https://mrmapi.sadhumargi.in/api/update-education/$editingId')
-        : Uri.parse('https://mrmapi.sadhumargi.in/api/save-education');
-
-    final Map<String, dynamic> body = {
-      'member_id': computedId.toString(),
-      'education_name': selectedEducation,
-      'education_description': _descriptionController.text,
-      'education_score': _scoreController.text,
-      'education_institute': _instituteController.text,
-      'education_year': _yearController.text,
-    };
+    setState(() {
+      isSaving = true;
+    });
 
     try {
-      final response = await (isEdit
-    ? http.put(
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json', // ✅ Add this line
-        },
-        body: json.encode(body),
-      )
-    : http.post(
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json', // ✅ Add here also for safety
-        },
-        body: json.encode(body),
-      ));
+      final isEdit = editingId != null;
+      final url = isEdit
+          ? Uri.parse('https://mrmapi.sadhumargi.in/api/update-education/$editingId')
+          : Uri.parse('https://mrmapi.sadhumargi.in/api/save-education');
 
+      final Map<String, dynamic> body = {
+        'member_id': computedId.toString(),
+        'education_name': selectedEducation,
+        'education_description': _descriptionController.text,
+        'education_score': _scoreController.text,
+        'education_institute': _instituteController.text,
+        'education_year': _yearController.text,
+      };
+
+      final response = await (isEdit
+          ? http.put(
+              url,
+              headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+              },
+              body: json.encode(body),
+            )
+          : http.post(
+              url,
+              headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+              },
+              body: json.encode(body),
+            ));
 
       if (response.statusCode == 200 || response.statusCode == 201) {
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(isEdit ? '✏️ संशोधन सफल' : '✅ शिक्षा सफलतापूर्वक जोड़ी गई')),
         );
         _resetForm();
-        fetchEducationData();
+        await fetchEducationData();
         _tabController?.animateTo(1); // switch to list
       } else {
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('❌ Error: ${response.statusCode}')),
         );
       }
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('🔴 नेटवर्क त्रुटि: $e')),
       );
+    } finally {
+      if (mounted) {
+        setState(() {
+          isSaving = false;
+        });
+      }
     }
   }
 
@@ -190,9 +214,9 @@ class _EducationState extends State<Education> with SingleTickerProviderStateMix
       editingId = edu['id'];
       selectedEducation = edu['education_name'];
       _descriptionController.text = edu['education_description'] ?? '';
-      _scoreController.text = edu['education_score'].toString();
+      _scoreController.text = edu['education_score']?.toString() ?? '';
       _instituteController.text = edu['education_institute'] ?? '';
-      _yearController.text = edu['education_year'].toString();
+      _yearController.text = edu['education_year']?.toString() ?? '';
     });
     _tabController?.animateTo(0);
   }
@@ -200,33 +224,57 @@ class _EducationState extends State<Education> with SingleTickerProviderStateMix
   @override
   Widget build(BuildContext context) {
     return BaseScaffold(
-      selectedIndex:-1,
+      selectedIndex: -1,
       body: DefaultTabController(
         length: 2,
-        child: Column(
+        child: Stack(
           children: [
-            Container(
-              color: Colors.green.shade100,
-              child: TabBar(
-                controller: _tabController,
-                indicatorColor: Colors.green,
-                labelColor: Colors.green,
-                unselectedLabelColor: Colors.black54,
-                tabs: const [
-                  Tab(text: '📝 शिक्षा फ़ॉर्म'),
-                  Tab(text: '📚 शिक्षा सूची'),
-                ],
-              ),
+            Column(
+              children: [
+                Container(
+                  color: Colors.green.shade100,
+                  child: TabBar(
+                    controller: _tabController,
+                    indicatorColor: Colors.green,
+                    labelColor: Colors.green,
+                    unselectedLabelColor: Colors.black54,
+                    tabs: const [
+                      Tab(text: '📝 शिक्षा फ़ॉर्म'),
+                      Tab(text: '📚 शिक्षा सूची'),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: TabBarView(
+                    controller: _tabController,
+                    children: [
+                      _buildEducationForm(),
+                      _buildEducationList(),
+                    ],
+                  ),
+                ),
+              ],
             ),
-            Expanded(
-              child: TabBarView(
-                controller: _tabController,
-                children: [
-                  _buildEducationForm(),
-                  _buildEducationList(),
-                ],
+
+            // Full-screen loading overlay while saving
+            if (isSaving)
+              Positioned.fill(
+                child: AbsorbPointer(
+                  absorbing: true,
+                  child: Container(
+                    color: Colors.black.withOpacity(0.35),
+                    alignment: Alignment.center,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: const [
+                        CircularProgressIndicator(),
+                        SizedBox(height: 12),
+                        Text('कृपया प्रतीक्षा करें...', style: TextStyle(color: Colors.white)),
+                      ],
+                    ),
+                  ),
+                ),
               ),
-            ),
           ],
         ),
       ),
@@ -249,36 +297,56 @@ class _EducationState extends State<Education> with SingleTickerProviderStateMix
                 decoration: const InputDecoration(labelText: '🎓 शिक्षा *'),
                 value: _dropdownItems.any((e) => e.value == selectedEducation) ? selectedEducation : null,
                 items: _dropdownItems,
-                onChanged: (value) => setState(() => selectedEducation = value),
+                onChanged: isSaving ? null : (value) => setState(() => selectedEducation = value),
               ),
               const SizedBox(height: 10),
               TextFormField(
                 controller: _descriptionController,
                 decoration: const InputDecoration(labelText: '🗒️ विवरण'),
+                enabled: !isSaving,
               ),
               const SizedBox(height: 10),
               TextFormField(
                 controller: _scoreController,
                 decoration: const InputDecoration(labelText: '🔢 अंक'),
                 keyboardType: TextInputType.number,
+                enabled: !isSaving,
               ),
               const SizedBox(height: 10),
               TextFormField(
                 controller: _instituteController,
                 decoration: const InputDecoration(labelText: '🏫 संस्थान'),
+                enabled: !isSaving,
               ),
               const SizedBox(height: 10),
               TextFormField(
                 controller: _yearController,
                 decoration: const InputDecoration(labelText: '📅 वर्ष'),
                 keyboardType: TextInputType.number,
+                enabled: !isSaving,
               ),
               const SizedBox(height: 20),
-              ElevatedButton.icon(
-                onPressed: _saveEducation,
-                icon: const Icon(Icons.save),
-                label: Text(editingId == null ? "प्रोफाइल में जोड़ें" : "अपडेट करें"),
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: isSaving ? null : _saveEducation,
+                  icon: isSaving
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Icon(Icons.save),
+                  label: Text(
+                    isSaving
+                        ? (editingId == null ? "जोड़ रहा है..." : "अपडेट कर रहा है...")
+                        : (editingId == null ? "प्रोफाइल में जोड़ें" : "अपडेट करें"),
+                  ),
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.green, padding: const EdgeInsets.symmetric(vertical: 14)),
+                ),
               ),
             ],
           ),
@@ -314,21 +382,21 @@ class _EducationState extends State<Education> with SingleTickerProviderStateMix
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('क्रमांक: ${index + 1}', style: const TextStyle(fontWeight: FontWeight.bold)),
-                Text('🎓 शिक्षा: ${edu['education_name']}'),
-                Text('🗒️ विवरण: ${edu['education_description']}'),
-                Text('🔢 अंक: ${edu['education_score']}'),
-                Text('🏫 संस्थान: ${edu['education_institute']}'),
-                Text('📅 वर्ष: ${edu['education_year']}'),
+                Text('🎓 शिक्षा: ${edu['education_name'] ?? ''}'),
+                Text('🗒️ विवरण: ${edu['education_description'] ?? ''}'),
+                Text('🔢 अंक: ${edu['education_score'] ?? ''}'),
+                Text('🏫 संस्थान: ${edu['education_institute'] ?? ''}'),
+                Text('📅 वर्ष: ${edu['education_year'] ?? ''}'),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
                     IconButton(
                       icon: const Icon(Icons.edit, color: Colors.orange),
-                      onPressed: () => _startEdit(edu),
+                      onPressed: isSaving ? null : () => _startEdit(edu),
                     ),
                     IconButton(
                       icon: const Icon(Icons.delete, color: Colors.red),
-                      onPressed: () => _deleteEducation(edu['id']),
+                      onPressed: isSaving ? null : () => _deleteEducation(edu['id']),
                     ),
                   ],
                 )
