@@ -223,7 +223,7 @@ class SamparkScreen extends StatelessWidget {
                         ),
 
                         // Existing Cards
-                        _buildCard("केंद्रीय कार्यालय लेख विभाग", "7073311108", "accounts@sadhumargi.com"),
+                        _buildCard("केंद्रीय कार्यालय लेखा विभाग", "7073311108", "accounts@sadhumargi.com"),
                         _buildCard("श्रमणोपासक", "9799061990", "news@sadhumargi.com"),
                         _buildCard("श्रमणोपासक समाचार", "8955682153", "news@sadhumargi.com"),
                         _buildCard("साहित्य", "8209090748", "sahitya@sadhumargi.com"),
