@@ -107,7 +107,6 @@ class _ProCardState extends State<_ProCard> with SingleTickerProviderStateMixin 
 
   @override
   Widget build(BuildContext context) {
-    final double elevation = hovering ? 18 : 8;
     final double translateY = hovering ? -6 : 0;
     final double scale = pressing ? 0.985 : 1.0;
 

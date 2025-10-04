@@ -13,35 +13,93 @@ class _YuvaHomeScreenState extends State<YuvaHomeScreen> {
   final PageController _pageController = PageController();
   int _current = 0;
   List<String> _sliderImages = [];
-  bool _loading = true;
+  
+  // लोडिंग स्टेट्स
+  bool _loadingSlider = true;
+  bool _loadingContent = true;
+  
+  // API से आने वाला टेक्स्ट कंटेंट
+  String _content = ''; 
 
   @override
   void initState() {
     super.initState();
+    // दोनों APIs को initState में कॉल करें
     fetchSliderImages();
+    fetchContent(); 
   }
 
+  // -------------------------------------------------------------------
+  // 1. स्लाइडर इमेजेज को API से लाने का फंक्शन
+  // -------------------------------------------------------------------
   Future<void> fetchSliderImages() async {
     try {
       final response =
           await http.get(Uri.parse("https://website.sadhumargi.in/api/yuva-slider"));
+      
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
+        
         final List<String> images = (data as List)
             .map((item) => "https://website.sadhumargi.in${item['image']}")
             .toList();
+            
         setState(() {
           _sliderImages = images;
-          _loading = false;
+          _loadingSlider = false;
         });
       } else {
-        setState(() => _loading = false);
+        setState(() => _loadingSlider = false);
       }
     } catch (e) {
-      setState(() => _loading = false);
+      setState(() => _loadingSlider = false);
     }
   }
 
+  // -------------------------------------------------------------------
+  // 2. टेक्स्ट कंटेंट को API से लाने का फंक्शन
+  // (आपके JSON फॉर्मेट के अनुसार अपडेटेड)
+  // -------------------------------------------------------------------
+  Future<void> fetchContent() async {
+    try {
+      final response =
+          await http.get(Uri.parse("https://website.sadhumargi.in/api/yuva-content"));
+      
+      if (response.statusCode == 200) {
+        // रिस्पॉन्स एक लिस्ट (List) है जिसमें पहला एलिमेंट कंटेंट है
+        final List<dynamic> dataList = json.decode(response.body);
+        
+        String fetchedContent = '';
+        
+        if (dataList.isNotEmpty && dataList.first is Map) {
+          // पहले ऑब्जेक्ट से 'content' key का मान निकालें
+          // dart:convert स्वतः ही unicode (\uXXXX) को हिंदी में बदल देता है
+          fetchedContent = dataList.first['content'] ?? 'कंटेंट लोड करने में असमर्थ।';
+        } else {
+          fetchedContent = 'कंटेंट डेटा फॉर्मेट में नहीं मिला।';
+        }
+
+        setState(() {
+          _content = fetchedContent;
+          _loadingContent = false;
+        });
+      } else {
+        setState(() {
+          _content = 'सर्वर से कंटेंट लोड करने में विफल (Status: ${response.statusCode})।';
+          _loadingContent = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _content = 'कंटेंट लोड करने के दौरान एक त्रुटि आई।';
+        _loadingContent = false;
+      });
+    }
+  }
+  
+  // -------------------------------------------------------------------
+  // 3. नेविगेशन डॉट्स विजेट
+  // -------------------------------------------------------------------
   Widget _buildDots() {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -66,7 +124,10 @@ class _YuvaHomeScreenState extends State<YuvaHomeScreen> {
     _pageController.dispose();
     super.dispose();
   }
-
+  
+  // -------------------------------------------------------------------
+  // 4. बिल्ड मेथड
+  // -------------------------------------------------------------------
   @override
   Widget build(BuildContext context) {
     return ListView(
@@ -77,7 +138,7 @@ class _YuvaHomeScreenState extends State<YuvaHomeScreen> {
         // Slider
         SizedBox(
           height: 200,
-          child: _loading
+          child: _loadingSlider
               ? const Center(child: CircularProgressIndicator())
               : (_sliderImages.isEmpty)
                   ? const Center(child: Text("No slider images available"))
@@ -114,42 +175,32 @@ class _YuvaHomeScreenState extends State<YuvaHomeScreen> {
         if (_sliderImages.isNotEmpty) _buildDots(),
         const SizedBox(height: 24),
 
-        // नीचे text (image की जगह)
-       // नीचे text (image की जगह)
-Padding(
-  padding: const EdgeInsets.symmetric(horizontal: 16.0),
-  child: Card(
-    elevation: 4,
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(12),
-      side: BorderSide(color: Colors.brown.shade200, width: 1),
-    ),
-    color: Colors.brown.shade50,
-    child: Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Text(
-        '''सन 1979 - अजमेर (राज.) :- समता की प्रतिमूर्ति समीक्षण ध्यान योगी परम पूज्य आचार्य प्रवर 1008 श्री नानालाल जी म. सा. के चातुर्मास में "समता - स्वाध्याय- सेवा" इन मूल मन्त्रों को लेकर साधुमार्गी युवाओं के संघठन की स्थापना की गई जिसे नाम दिया गया
-
-"श्री अखिल भारतवर्षीय साधुमार्गी जैन समता युवा संघ"
-
-पुरे राष्ट्र एवं विदेशों में फैलें साधुमार्गी परिवारों के युवाओं को अपने साथ संजोते हुए यह संघठन धीरे-धीरे विशाल रूप लेता गया पूज्य गुरु भगवंतों की असीम कृपा एवं समय-समय पर युवा नेतृत्वकर्ताओं ने, कार्यकर्ताओं ने अपने पुरुषार्थ से इसे संवारा आगे बढाया ।
-
-समता युवा संघ श्री अ.भा.सा. जैन संघ की एक शाखा के रूप में है।
-
-आज पुरे राष्ट्र में 200 शाखाओं एवं 5000 से अधिक युवा सदस्यों के साथ कार्यरत हैं आचार्य भगवन द्वारा दिए गये आयामों संघ की विभिन्न प्रवृत्तियों आदि की प्रभावना करने के साथ साथ युवा साथियों के व्यक्तित्त्व विकास, धार्मिक विकास ऊर्जा को बढ़ाने हेतु भी निरंतर कार्यरत हैं।
-
-युवा साथियों के साथ में तरुण युवाओं (12 से 18 वर्ष) हेतु भी कई आयोजन करते हुए उनमे धार्मिक विकास हेतु भी कार्यरत हैं।''',
-        style: const TextStyle(
-          fontSize: 14,
-          height: 1.6,
-          color: Colors.black87,
+        // Dynamic Content Card
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+          child: _loadingContent
+              ? const Center(child: CircularProgressIndicator()) // कंटेंट लोड हो रहा है
+              : Card(
+                  elevation: 4,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: BorderSide(color: Colors.brown.shade200, width: 1),
+                  ),
+                  color: Colors.brown.shade50,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Text(
+                      _content, // API से प्राप्त कंटेंट
+                      style: const TextStyle(
+                        fontSize: 14,
+                        height: 1.6,
+                        color: Colors.black87,
+                      ),
+                      textAlign: TextAlign.justify,
+                    ),
+                  ),
+                ),
         ),
-        textAlign: TextAlign.justify,
-      ),
-    ),
-  ),
-),
-
       ],
     );
   }

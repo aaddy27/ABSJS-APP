@@ -237,7 +237,15 @@ class _EmploymentScreenState extends State<EmploymentScreen> with SingleTickerPr
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                     color: Colors.white,
                     child: Column(
-                      children: [                       
+                      children: [
+                        if (_lastUpdated != null)
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: Text(
+                              'Last updated: ${_formatDate(_lastUpdated!)}',
+                              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                            ),
+                          ),
                         const SizedBox(height: 8),
                         TabBar(
                           controller: _tabController,

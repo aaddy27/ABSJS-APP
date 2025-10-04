@@ -24,8 +24,8 @@ class AddressStep extends StatelessWidget {
   final dynamic selectedCountryModel;
   final List<dynamic> stateList; // StateModel objects
   final dynamic selectedStateModel;
-  final ValueChanged<dynamic?> onCountryChanged;
-  final ValueChanged<dynamic?> onStateChanged;
+  final ValueChanged<dynamic> onCountryChanged;
+  final ValueChanged<dynamic> onStateChanged;
   final ValueChanged<String?> onPinChanged;
 
   const AddressStep({
@@ -53,7 +53,7 @@ class AddressStep extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final _dec = (String label, {Widget? icon}) => InputDecoration(
+    InputDecoration dec(String label, {Widget? icon}) => InputDecoration(
           labelText: label,
           prefixIcon: icon,
           filled: true,
@@ -61,7 +61,7 @@ class AddressStep extends StatelessWidget {
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         );
 
-    String _nameOf(dynamic item) {
+    String nameOf(dynamic item) {
       try {
         if (item == null) return '';
         final v = item.name;
@@ -79,28 +79,28 @@ class AddressStep extends StatelessWidget {
           value: jobTypes.contains(selectedJobType) ? selectedJobType : null,
           items: jobTypes.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
           onChanged: onJobTypeChanged,
-          decoration: _dec("पते का प्रकार", icon: const Icon(Icons.home_work)),
+          decoration: dec("पते का प्रकार", icon: const Icon(Icons.home_work)),
         ),
         const SizedBox(height: 12),
         Row(children: [
-          Expanded(child: TextFormField(controller: address1Controller, decoration: _dec("पता 1", icon: const Icon(Icons.location_on)))),
+          Expanded(child: TextFormField(controller: address1Controller, decoration: dec("पता 1", icon: const Icon(Icons.location_on)))),
           const SizedBox(width: 12),
-          Expanded(child: TextFormField(controller: address2Controller, decoration: _dec("पता 2"))),
+          Expanded(child: TextFormField(controller: address2Controller, decoration: dec("पता 2"))),
         ]),
         const SizedBox(height: 12),
         Row(children: [
-          Expanded(child: TextFormField(controller: postController, decoration: _dec("पोस्ट"))),
+          Expanded(child: TextFormField(controller: postController, decoration: dec("पोस्ट"))),
           const SizedBox(width: 12),
-          Expanded(child: TextFormField(controller: cityController, decoration: _dec("शहर"))),
+          Expanded(child: TextFormField(controller: cityController, decoration: dec("शहर"))),
         ]),
         const SizedBox(height: 12),
         Row(children: [
-          Expanded(child: TextFormField(controller: districtController, decoration: _dec("जिला"))),
+          Expanded(child: TextFormField(controller: districtController, decoration: dec("जिला"))),
           const SizedBox(width: 12),
           Expanded(
             child: TextFormField(
               controller: pinCodeController,
-              decoration: _dec("पिन कोड"),
+              decoration: dec("पिन कोड"),
               keyboardType: TextInputType.number,
               onChanged: onPinChanged,
             ),
@@ -113,11 +113,11 @@ class AddressStep extends StatelessWidget {
           items: countryList
               .map((c) => DropdownMenuItem(
                     value: c,
-                    child: Text(_nameOf(c)),
+                    child: Text(nameOf(c)),
                   ))
               .toList(),
           onChanged: onCountryChanged,
-          decoration: _dec('देश', icon: const Icon(Icons.flag)),
+          decoration: dec('देश', icon: const Icon(Icons.flag)),
         ),
         const SizedBox(height: 12),
         DropdownButtonFormField<dynamic>(
@@ -126,11 +126,11 @@ class AddressStep extends StatelessWidget {
           items: stateList
               .map((s) => DropdownMenuItem(
                     value: s,
-                    child: Text(_nameOf(s)),
+                    child: Text(nameOf(s)),
                   ))
               .toList(),
           onChanged: onStateChanged,
-          decoration: _dec('राज्य', icon: const Icon(Icons.map)),
+          decoration: dec('राज्य', icon: const Icon(Icons.map)),
         ),
        
       ]),

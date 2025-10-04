@@ -14,13 +14,13 @@ class SamajikPravartiyaScreen extends StatefulWidget {
 class _SamajikPravartiyaScreenState extends State<SamajikPravartiyaScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  late Future<List<dynamic>> _apiData;
+  // late Future<List<dynamic>> _apiData;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
-    _apiData = fetchUtkraantiAbhiyanData();
+    // _apiData = fetchUtkraantiAbhiyanData();
   }
 
   Future<List<dynamic>> fetchUtkraantiAbhiyanData() async {

@@ -847,12 +847,6 @@ class _GeneralDetailsState extends State<GeneralDetails> {
     if (s.length != 10) return '10 अंकों का मोबाइल';
     return null;
   }
-  String? _pincode6(String? v) {
-    final s = (v ?? '').replaceAll(RegExp(r'\D'), '');
-    if (s.isEmpty) return null;
-    if (s.length != 6) return '6 अंकों का पिन कोड';
-    return null;
-  }
   String? _email(String? v) {
     if ((v ?? '').isEmpty) return null;
     final ok = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(v!.trim());

@@ -270,7 +270,7 @@ class _DonationsScreenState extends State<DonationsScreen> {
                                           fontWeight: FontWeight.bold)),
                                   Text("दिनांक : $formattedDate"),
                                   Text("घोषित राशि : ₹$announcementAmt"),
-                                  Text("प्राप्त राशि : ₹$activityAmt"),
+                                  Text("सोजन्य से प्राप्त राशि : ₹$activityAmt"),
                                 ],
                               ),
                             ),
@@ -425,7 +425,7 @@ class _DonationsScreenState extends State<DonationsScreen> {
                 Text("घोषणा दिनांक : ${item["Announcement Date"] ?? "-"}"),
                 const Divider(),
                 Text("घोषित राशि : ₹$announced"),
-                Text("प्राप्त राशि : ₹$received"),
+                Text("सोजन्य से प्राप्त राशि : ₹$received"),
                 Text("शेष राशि : ₹$outstanding"),
 
                 const SizedBox(height: 10),

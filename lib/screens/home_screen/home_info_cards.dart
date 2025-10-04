@@ -206,11 +206,8 @@ String _formatHumanDateOrRaw(String? raw) {
   }
 }
 
-/// Utility wrapper duplicates for clarity used above
-String _formatHumanDateOrRaw_forThought(String? raw) => _formatHumanDateOrRaw(raw);
 
-/// Helper used in widget to keep naming simple
-String _formatHumanDate(String raw) => _formatHumanDateOrRaw(raw);
+// Removed unused _formatHumanDate function
 
 /// Try extract a date-like token and return compact label (e.g. '05 Sep')
 String? _tryExtractDateToken(String s) {
