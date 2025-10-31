@@ -31,8 +31,8 @@ android {
         applicationId = "com.sabsjs.laravel_auth_flutter"
         minSdk = 29
         targetSdk = flutter.targetSdkVersion
-        versionCode = 12
-        versionName = "1.12.0"
+        versionCode = 14
+        versionName = "1.14.0"
         // multiDexEnabled = true
     }
 
@@ -66,6 +66,8 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            // Disable cache to avoid Kotlin compilation issues
+            System.setProperty("kotlin.daemon.jvm.options", "-Xmx2g,-XX:MaxMetaspaceSize=1g")
         }
         getByName("debug") { /* default debug signing */ }
     }

@@ -1,9 +1,32 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import '../utils/network_helper.dart';
 
 class ApiService {
   final String baseUrl = 'https://mrmapi.sadhumargi.in/api';
+  
+  // Add retry mechanism
+  Future<http.Response> _makeRequest(
+    Future<http.Response> Function() requestFunction,
+    {int maxRetries = 3}
+  ) async {
+    int retryCount = 0;
+    
+    while (retryCount < maxRetries) {
+      try {
+        return await requestFunction().timeout(const Duration(seconds: 30));
+      } catch (e) {
+        retryCount++;
+        if (retryCount >= maxRetries) {
+          rethrow;
+        }
+        // Wait before retry
+        await Future.delayed(Duration(seconds: retryCount * 2));
+      }
+    }
+    throw Exception('Max retries exceeded');
+  }
 
   /// Login using member_id and password
   Future<Map<String, dynamic>> loginWithMemberId(String memberId, String password) async {
@@ -89,24 +112,44 @@ Future<Map<String, dynamic>> sendOTP(String mobile, String memberId) async {
   final url = Uri.parse('$baseUrl/send-otp');
 
   try {
-    final response = await http.post(
+    print("Sending OTP request to: $url");
+    print("Mobile: $mobile, Member ID: $memberId");
+    
+    final response = await _makeRequest(() => http.post(
       url,
-      headers: {'Accept': 'application/json'},
-      body: {
-        'mobile_number': mobile, // ✅ correct key
-        'member_id': memberId,   // if required
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/x-www-form-urlencoded',
       },
-    );
+      body: {
+        'mobile_number': mobile,
+        'member_id': memberId,
+      },
+    ));
 
-    final data = json.decode(response.body);
-    return {
-      'success': data['status'] == true,
-      'message': data['message'] ?? '',
-    };
+    print("Response status: ${response.statusCode}");
+    print("Response body: ${response.body}");
+
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      return {
+        'success': data['status'] == true || data['success'] == true,
+        'message': data['message'] ?? 'OTP sent successfully',
+      };
+    } else {
+      final error = json.decode(response.body);
+      return {
+        'success': false,
+        'message': error['message'] ?? 'Failed to send OTP. Server error.',
+      };
+    }
   } catch (e) {
+    print("SendOTP Error: $e");
+    String errorMessage = NetworkHelper.getNetworkErrorMessage(e);
+    
     return {
       'success': false,
-      'message': 'Something went wrong while sending OTP.',
+      'message': errorMessage,
     };
   }
 }

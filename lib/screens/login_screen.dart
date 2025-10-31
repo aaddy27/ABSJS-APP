@@ -162,12 +162,54 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       _showError('Missing mobile or member ID');
       return;
     }
-    await _showLoader(true);
+    
+    // Show different loading message for OTP
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => Center(
+        child: Container(
+          width: 200,
+          height: 120,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 20)],
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(height: 16),
+              Text(
+                'Sending OTP...',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: textSecondary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    
     final result = await ApiService().sendOTP(currentMobile, selectedMemberId);
-    await _showLoader(false);
+    
+    if (Navigator.of(context).canPop()) Navigator.of(context).pop();
 
     if (result['success'] == true) {
       setState(() => isOTPSent = true);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('OTP sent successfully to $currentMobile'),
+          backgroundColor: Colors.green.shade600,
+          behavior: SnackBarBehavior.floating,
+          margin: const EdgeInsets.all(16),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
     } else {
       _showError(result['message'] ?? 'Failed to send OTP');
     }
@@ -310,65 +352,98 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
 
   Widget _otpLoginPanel() {
     return _card(
-      Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          TextField(
-  controller: _mobileController,
-  keyboardType: TextInputType.phone,
-  inputFormatters: [
-    FilteringTextInputFormatter.digitsOnly,
-    LengthLimitingTextInputFormatter(10), // 🔒 max 10 digits
-  ],
-  decoration: _decor("Mobile Number", icon: Icons.phone),
-),
-
-          const SizedBox(height: 12),
-          _button("Check Member IDs", _checkMobile, icon: Icons.search),
-          const SizedBox(height: 14),
-
-          if ((isMemberSelectionRequired && memberList.isNotEmpty) || (!isMemberSelectionRequired && memberList.length == 1))
-            Padding(
-              padding: const EdgeInsets.only(top: 6),
-              child: isMemberSelectionRequired
-                  ? DropdownButtonFormField<String>(
-                      value: selectedMemberId.isNotEmpty ? selectedMemberId : null,
-                      decoration: InputDecoration(
-                        labelText: 'Select Member ID',
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(radius)),
-                      ),
-                      items: memberList.map((member) {
-                        return DropdownMenuItem(
-                          value: member['member_id'].toString(),
-                          child: Text('${member['name'] ?? 'Member'} (${member['member_id']})'),
-                        );
-                      }).toList(),
-                      onChanged: (value) => setState(() => selectedMemberId = value ?? ''),
-                    )
-                  : Text(
-                      'Member ID: ${memberList.first['member_id']} (${memberList.first['name'] ?? 'Member'})',
-                      style: const TextStyle(fontWeight: FontWeight.w700, color: textPrimary),
-                    ),
-            ),
-
-          const SizedBox(height: 14),
-
-          if (selectedMemberId.isNotEmpty && !isOTPSent)
-            _button("Send OTP", _sendOtp, icon: Icons.sms),
-
-          if (isOTPSent) ...[
-            const SizedBox(height: 14),
+      SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
             TextField(
-              controller: _otpController,
-              keyboardType: TextInputType.number,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              decoration: _decor("Enter OTP", icon: Icons.sms),
+              controller: _mobileController,
+              keyboardType: TextInputType.phone,
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+                LengthLimitingTextInputFormatter(10),
+              ],
+              decoration: _decor("Mobile Number", icon: Icons.phone),
             ),
-            const SizedBox(height: 14),
-            _button("Verify OTP", _verifyOTP, icon: Icons.verified, color: Colors.green),
+
+            const SizedBox(height: 12),
+            _button("Check Member IDs", _checkMobile, icon: Icons.search),
+            const SizedBox(height: 10),
+
+            if ((isMemberSelectionRequired && memberList.isNotEmpty) || (!isMemberSelectionRequired && memberList.length == 1))
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: isMemberSelectionRequired
+                    ? DropdownButtonFormField<String>(
+                        value: selectedMemberId.isNotEmpty ? selectedMemberId : null,
+                        decoration: InputDecoration(
+                          labelText: 'Select Member ID',
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(radius)),
+                        ),
+                        items: memberList.map((member) {
+                          return DropdownMenuItem(
+                            value: member['member_id'].toString(),
+                            child: Text('${member['name'] ?? 'Member'} (${member['member_id']})'),
+                          );
+                        }).toList(),
+                        onChanged: (value) => setState(() => selectedMemberId = value ?? ''),
+                      )
+                    : Text(
+                        'Member ID: ${memberList.first['member_id']} (${memberList.first['name'] ?? 'Member'})',
+                        style: const TextStyle(fontWeight: FontWeight.w700, color: textPrimary),
+                      ),
+              ),
+
+            const SizedBox(height: 12),
+
+            if (selectedMemberId.isNotEmpty && !isOTPSent)
+              _button("Send OTP", _sendOtp, icon: Icons.sms),
+
+            if (isOTPSent) ...[
+              const SizedBox(height: 10),
+              TextField(
+                controller: _otpController,
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                decoration: _decor("Enter OTP", icon: Icons.sms),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    flex: 3,
+                    child: _button("Verify OTP", _verifyOTP, icon: Icons.verified, color: Colors.green),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    flex: 2,
+                    child: _button("Resend", _sendOtp, icon: Icons.refresh, color: Colors.orange),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'OTP sent to $currentMobile',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 11, color: textSecondary),
+              ),
+              const SizedBox(height: 6),
+              GestureDetector(
+                onTap: _openWhatsApp,
+                child: Text(
+                  '📞 Need Help? Contact Support',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Colors.white70,
+                    decoration: TextDecoration.underline,
+                  ),
+                ),
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
@@ -437,7 +512,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                       const SizedBox(height: 16),
                       // adaptive height to avoid overflow (compact)
                       SizedBox(
-                        height: math.max(360, math.min(480, c.maxHeight * (isWide ? 0.45 : 0.42))),
+                        height: math.max(320, math.min(420, c.maxHeight * (isWide ? 0.40 : 0.38))),
                         child: TabBarView(
                           controller: _tabController,
                           children: [
@@ -509,6 +584,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       return Row(
         children: [
           Container(
+
             width: 26,
             height: 26,
             decoration: BoxDecoration(
