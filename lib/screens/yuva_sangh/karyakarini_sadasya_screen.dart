@@ -25,7 +25,7 @@ class KaryakariniSadasyaScreen extends StatelessWidget {
         "screen": const YuvaExPresidentScreen(),
       },
       {
-        "title": "युवा संघ VP & Sec",
+        "title": "युवा संघ Vice President & Secretary",
         "subtitle": "उपाध्यक्ष एवं मंत्री",
         "icon": Icons.supervisor_account,
         "gradient": [const Color(0xFF00B4AA), const Color(0xFF4ADEDE)],
