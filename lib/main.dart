@@ -1,4 +1,5 @@
-// main.dart
+// lib/main.dart
+
 import 'dart:io';
 import 'dart:convert';
 import 'package:flutter/material.dart';
@@ -14,14 +15,23 @@ import 'screens/splash_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
 
+/// If you used `flutterfire configure`, uncomment the next line and also
+/// uncomment the initializeApp(...) with options below.
+// import 'firebase_options.dart' show DefaultFirebaseOptions;
+
 /// 🔹 Local Notifications Plugin Instance
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
     FlutterLocalNotificationsPlugin();
 
 /// 🔹 Background Notification Handler (top-level)
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  await Firebase.initializeApp();
-  // Note: background isolate cannot run complex UI - but system handles notification when notification payload used.
+  // Each background isolate must initialize Firebase.
+  try {
+    await Firebase.initializeApp();
+  } catch (e) {
+    // already initialized or failed — print for debugging
+    print("Background initializeApp() error: $e");
+  }
   print("Background Message: ${message.messageId} | ${message.notification?.title}");
 }
 
@@ -84,18 +94,37 @@ Future<String> _downloadAndSaveFile(String url, String fileName) async {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp();
 
-  // 🔹 Background Notifications
+  bool firebaseInitialized = false;
+
+  try {
+    // OPTION A: If you used flutterfire configure, use the options:
+    // await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+    // OPTION B: If you did NOT use flutterfire configure, ensure GoogleService-Info.plist (iOS)
+    // and google-services.json (Android) are correctly placed and then use:
+    await Firebase.initializeApp();
+
+    firebaseInitialized = true;
+    print("✅ Firebase initialized successfully");
+  } catch (e, st) {
+    // initialization failed — print details but continue (app may still run partially)
+    print("❌ Firebase.initializeApp() failed: $e");
+    print(st);
+    // You can decide to exit or continue with degraded functionality.
+    // For now, continue so you can see a friendly UI and debug logs.
+  }
+
+  // Register background handler only after attempting init (safe even if init failed)
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
-  // 🔹 Local Notifications Setup (create channel, etc.)
+  // Local notifications setup (safe independent of Firebase init)
   await setupFlutterNotifications();
 
-  runApp(const MyApp());
+  runApp(MyApp(firebaseInitialized: firebaseInitialized));
 }
 
-/// 🔹 Force Update Wrapper (unchanged except small cosmetic tweaks)
+/// 🔹 Force Update Wrapper
 class UpdateChecker extends StatefulWidget {
   final Widget child;
   const UpdateChecker({super.key, required this.child});
@@ -255,7 +284,8 @@ class _UpdateCheckerState extends State<UpdateChecker> {
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  final bool firebaseInitialized;
+  const MyApp({super.key, required this.firebaseInitialized});
 
   @override
   Widget build(BuildContext context) {
@@ -266,8 +296,11 @@ class MyApp extends StatelessWidget {
         primarySwatch: Colors.deepPurple,
         scaffoldBackgroundColor: Colors.grey[100],
       ),
-      home: const UpdateChecker(
-        child: SplashScreen(),
+      home: UpdateChecker(
+        child: SplashScreen(
+          // If you want SplashScreen to handle notification init after UI is ready,
+          // you can pass flag or callback here. For now we simply pass nothing.
+        ),
       ),
       routes: {
         '/login': (context) => LoginScreen(),
@@ -280,6 +313,9 @@ class MyApp extends StatelessWidget {
 class NotificationService {
   static final FirebaseMessaging _messaging = FirebaseMessaging.instance;
 
+  /// Call this AFTER Firebase.initializeApp() has completed successfully,
+  /// e.g., from a screen's initState (SplashScreen), or after runApp if you
+  /// implement a callback to ensure app UI is ready.
   static Future<void> initNotifications(BuildContext context) async {
     // 🔹 Request permissions (iOS mostly)
     NotificationSettings settings = await _messaging.requestPermission(
