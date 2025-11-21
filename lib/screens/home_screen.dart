@@ -11,6 +11,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 // ---- Your existing screens ----
 import 'package:laravel_auth_flutter/screens/shree_sangh/home_screen.dart' as shree;
+import 'package:laravel_auth_flutter/screens/spf/home_screen.dart' as spf;
 import 'arth_sahyog.dart';
 import 'chaturmas_suchi_screen.dart';
 import 'login_screen.dart';
@@ -379,8 +380,9 @@ Future<void> _fetchLatestThought() async {
     final List<Map<String, dynamic>> dashboardItems = [
       {"title": "ग्लोबल कार्ड", "image": "assets/images/mrm.jpg", "screen": MrmScreen(memberId: memberId!)},
       {"title": "श्री संघ", "image": "assets/11zon_resized.png", "screen": const shree.HomeScreen()},
-      {"title": "महिला समिति", "image": "assets/images/mslogo.png", "screen": const LayoutScreen(title: "श्री अ.भा.सा. जैन महिला समिति")},
+      {"title": "महिला समिति", "image": "assets/images/mslogo.png", "screen": const LayoutScreen(title: "श्री अ.भा.सा. जैन महिला समिति")},      
       {"title": "युवा संघ", "image": "assets/images/yuva.png", "screen": const YuvaSanghLayout(initialIndex: 0)},
+      {"title": "SPF", "image": "assets/images/spf.jpg", "screen": const spf.HomeScreen()},
       {"title": "विहार", "image": "assets/images/vihar_seva.jpg", "screen": const ViharScreen()},
       {"title": "अर्थ सहयोग", "image": "assets/images/donation.webp", "screen": const ArthSahyogScreen()},
     ];
